@@ -15,8 +15,8 @@ function PlutosMark() {
 
 export default function LoginPage() {
   return (
-    <main className="min-h-dvh bg-white">
-      <div className="grid min-h-dvh w-full overflow-hidden bg-white lg:h-dvh lg:grid-cols-[1.08fr_minmax(520px,0.92fr)]">
+    <main className="min-h-dvh bg-background">
+      <div className="grid min-h-dvh w-full overflow-hidden bg-background lg:h-dvh lg:grid-cols-[1.08fr_minmax(520px,0.92fr)]">
         <section
           className="relative hidden min-h-dvh overflow-hidden lg:block"
           aria-hidden="true"
@@ -34,21 +34,21 @@ export default function LoginPage() {
         <section className="flex min-h-dvh flex-col px-6 py-7 sm:px-12 sm:py-10 lg:min-h-0 lg:px-[clamp(48px,6vw,96px)] lg:py-12">
           <div className="flex items-center gap-3">
             <PlutosMark />
-            <span className="text-xl font-bold tracking-[-0.04em] text-slate-950">plutos</span>
+            <span className="text-xl font-bold tracking-[-0.04em] text-foreground">plutos</span>
           </div>
 
           <div className="mt-12 w-full max-w-[430px] self-center sm:mt-14 lg:mt-16">
-            <h1 className="text-[34px] font-bold leading-[1.15] tracking-[-0.045em] text-slate-950 sm:text-[40px]">
+            <h1 className="text-[34px] font-bold leading-[1.15] tracking-[-0.045em] text-foreground sm:text-[40px]">
               Welcome back
             </h1>
-            <p className="mt-3 max-w-sm text-base leading-7 text-slate-500">
+            <p className="mt-3 max-w-sm text-base leading-7 text-muted-foreground">
               Sign in to your account
             </p>
             <LoginForm />
-            <p className="mt-8 text-center text-xs leading-5 text-slate-400">En vous connectant, vous acceptez nos conditions d’utilisation et notre politique de confidentialité.</p>
+            <p className="mt-8 text-center text-xs leading-5 text-muted-foreground">En vous connectant, vous acceptez nos conditions d’utilisation et notre politique de confidentialité.</p>
           </div>
 
-          <p className="mt-auto pt-8 text-xs text-slate-400">© {new Date().getFullYear()} Plutos</p>
+          <p className="mt-auto pt-8 text-xs text-muted-foreground">© {new Date().getFullYear()} Plutos</p>
         </section>
       </div>
     </main>

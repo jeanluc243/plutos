@@ -1,0 +1,2 @@
+ALTER TABLE "articles" ADD COLUMN "transport_cost" numeric(12, 2) DEFAULT '0' NOT NULL;--> statement-breakpoint
+ALTER TABLE "articles" ADD CONSTRAINT "articles_transport_cost_positive" CHECK ("articles"."transport_cost" >= 0);
