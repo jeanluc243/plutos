@@ -14,7 +14,11 @@ const globalForDatabase = globalThis as typeof globalThis & {
 
 function createClient(config: ReturnType<typeof getDatabaseConfig>) {
   return postgres(config.url, {
-    max: config.target === "production" ? 10 : 1,
+    // A Vercel function can serve concurrent requests. Reusing one small pool per
+    // function instance avoids multiplying Supabase connections on every query.
+    max: 1,
+    idle_timeout: 20,
+    connect_timeout: 10,
     prepare: false,
   });
 }
@@ -27,10 +31,8 @@ export function getDatabase() {
       : undefined;
   const client = cachedClient ?? createClient(config);
 
-  if (process.env.NODE_ENV !== "production") {
-    globalForDatabase.plutosSqlClient = client;
-    globalForDatabase.plutosDatabaseUrl = config.url;
-  }
+  globalForDatabase.plutosSqlClient = client;
+  globalForDatabase.plutosDatabaseUrl = config.url;
 
   return drizzle(client);
 }

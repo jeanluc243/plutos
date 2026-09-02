@@ -22,11 +22,9 @@ export function calculateArticleCost(inputs: Omit<ArticleCostInputs, "gainMultip
 }
 
 export function calculateSuggestedSalePrice(inputs: ArticleCostInputs) {
-  const sharedFees =
-    inputs.paymentCommission +
-    inputs.chinaTransportCost +
-    inputs.agencyTransportCost;
-  const feePerUnit = inputs.stock > 0 ? sharedFees / inputs.stock : 0;
+  if (inputs.stock <= 0) return 0;
 
-  return Math.round((inputs.purchasePrice + feePerUnit * inputs.gainMultiplier) * 100) / 100;
+  return Math.round(
+    (calculateArticleCost(inputs) / inputs.stock) * inputs.gainMultiplier * 100,
+  ) / 100;
 }

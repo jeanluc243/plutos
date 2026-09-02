@@ -266,7 +266,7 @@ export function ArticlesWorkspace({
                               href={`/dashboard/articles/${article.id}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="block cursor-pointer truncate font-semibold underline-offset-4 hover:underline focus-visible:underline"
+                              className="block cursor-pointer line-clamp-2 font-semibold leading-5 underline-offset-4 hover:underline focus-visible:underline"
                               onClick={(event) => event.stopPropagation()}
                             >{article.name}</Link>
                             <p className="mt-1 truncate font-mono text-xs text-muted-foreground">
