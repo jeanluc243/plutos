@@ -123,7 +123,7 @@ function NavigationPanel({
       >
         <Link
           href="/dashboard"
-          prefetch
+          prefetch={false}
           className={cn(
             "flex min-w-0 items-center gap-3 rounded-lg outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
             !collapsed && "flex-1",
@@ -182,7 +182,7 @@ function NavigationPanel({
                 render={
                   <Link
                     href={href}
-                    prefetch
+                    prefetch={false}
                     target={copyKey === "invoices" ? "_blank" : undefined}
                     rel={copyKey === "invoices" ? "noopener noreferrer" : undefined}
                   />
@@ -232,7 +232,7 @@ function NavigationPanel({
             return href ? (
               <Button
                 key={copyKey}
-                render={<Link href={href} target="_blank" rel="noopener noreferrer" />}
+                render={<Link href={href} prefetch={false} target="_blank" rel="noopener noreferrer" />}
                 nativeButton={false}
                 variant="ghost"
                 {...sharedProps}
