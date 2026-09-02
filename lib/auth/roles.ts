@@ -1,6 +1,6 @@
 import "server-only";
 
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
 import { getDatabase } from "@/lib/db/client";
 import { appUsers } from "@/lib/db/schema";
@@ -17,39 +17,39 @@ function normalizedEmail(user: AuthenticatedUser) {
 }
 
 export async function ensureApplicationUser(user: AuthenticatedUser) {
-  return getDatabase().transaction(async (transaction) => {
-    await transaction.execute(sql`select pg_advisory_xact_lock(842011)`);
+  const database = getDatabase();
+  const email = normalizedEmail(user);
+  const [existing] = await database
+    .select()
+    .from(appUsers)
+    .where(eq(appUsers.id, user.id))
+    .limit(1);
 
-    const [existing] = await transaction
-      .select()
-      .from(appUsers)
-      .where(eq(appUsers.id, user.id))
-      .limit(1);
-
-    if (existing) {
-      const email = normalizedEmail(user);
-      if (existing.email !== email) {
-        await transaction
-          .update(appUsers)
-          .set({ email, updatedAt: new Date() })
-          .where(eq(appUsers.id, user.id));
-        return { ...existing, email };
-      }
-      return existing;
+  if (existing) {
+    if (existing.email !== email) {
+      await database
+        .update(appUsers)
+        .set({ email, updatedAt: new Date() })
+        .where(eq(appUsers.id, user.id));
+      return { ...existing, email };
     }
+    return existing;
+  }
 
-    const [firstUser] = await transaction.select({ id: appUsers.id }).from(appUsers).limit(1);
-    const [created] = await transaction
-      .insert(appUsers)
-      .values({
-        id: user.id,
-        email: normalizedEmail(user),
-        role: firstUser ? "user" : "admin",
-      })
-      .returning();
+  const [firstUser] = await database.select({ id: appUsers.id }).from(appUsers).limit(1);
+  await database
+    .insert(appUsers)
+    .values({ id: user.id, email, role: firstUser ? "user" : "admin" })
+    .onConflictDoNothing();
 
-    return created;
-  });
+  const [created] = await database
+    .select()
+    .from(appUsers)
+    .where(eq(appUsers.id, user.id))
+    .limit(1);
+
+  if (!created) throw new Error("Unable to initialize the application user.");
+  return created;
 }
 
 export async function getApplicationRole(userId: string): Promise<AppRole> {
