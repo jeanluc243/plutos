@@ -134,6 +134,241 @@ Les variables `NEXT_PUBLIC_SUPABASE_URL` et
 `NEXT_PUBLIC_SUPABASE_ANON_KEY` concernent l'authentification Supabase déjà
 utilisée par l'application. Elles ne choisissent pas la base de données Drizzle.
 
+## Sauvegarder et déployer toutes les modifications
+
+Une livraison complète contient deux opérations différentes :
+
+- **Git** sauvegarde le code, `package-lock.json`, `lib/db/schema.ts`, les
+  migrations SQL et les métadonnées du dossier `drizzle/` ;
+- **PostgreSQL/Supabase** conserve les données et reçoit les migrations avec
+  `npm run db:migrate`.
+
+Les lignes présentes dans PostgreSQL ne sont jamais enregistrées par
+`git commit`. Un export de la base doit être conservé séparément et ne doit pas
+être ajouté au dépôt, car il peut contenir des données personnelles et des
+secrets.
+
+### Première configuration de Vercel CLI
+
+Installez et connectez la CLI une seule fois :
+
+```bash
+npm install --global vercel
+vercel login
+vercel whoami
+vercel link
+```
+
+`vercel link` crée le dossier local `.vercel/`, déjà ignoré par Git, et relie ce
+dossier au projet Vercel. Exécutez toujours les commandes suivantes depuis la
+racine du projet.
+
+Ajoutez les variables de production sans écrire leurs valeurs dans une
+commande, un commit ou le README :
+
+```bash
+vercel env add DATABASE_TARGET production
+vercel env add SUPABASE_DATABASE_URL production --sensitive
+vercel env add NEXT_PUBLIC_SUPABASE_URL production
+vercel env add NEXT_PUBLIC_SUPABASE_ANON_KEY production
+vercel env ls
+```
+
+Dans Vercel, `SUPABASE_DATABASE_URL` doit être l'URL du **Transaction pooler**
+sur le port `6543`. Le fichier local `.env.production.local`, utilisé pour les
+migrations, doit garder l'URL directe ou celle du **Session pooler** sur le port
+`5432`. Les deux URL doivent contenir `sslmode=require`.
+
+Si des déploiements Preview sont utilisés, configurez-les explicitement avec
+une base de démonstration hébergée et accessible depuis Vercel :
+
+```bash
+vercel env add DATABASE_TARGET preview
+vercel env add DEMO_DATABASE_URL preview --sensitive
+vercel env add NEXT_PUBLIC_SUPABASE_URL preview
+vercel env add NEXT_PUBLIC_SUPABASE_ANON_KEY preview
+```
+
+Une URL PostgreSQL en `localhost` ne fonctionne pas depuis un déploiement
+Vercel.
+
+### Workflow complet pour chaque livraison
+
+#### 1. Vérifier les fichiers modifiés
+
+```bash
+git status --short
+git diff
+```
+
+Vérifiez particulièrement qu'aucun fichier `.env*`, dump PostgreSQL, mot de
+passe ou clé privée ne va être commité.
+
+#### 2. Générer et tester les migrations
+
+Si `lib/db/schema.ts` a changé :
+
+```bash
+npm run db:generate
+git diff -- lib/db/schema.ts drizzle/
+npm run db:migrate
+```
+
+La dernière commande applique les nouvelles migrations à PostgreSQL local avec
+la configuration de `.env.local`.
+
+#### 3. Valider l'application
+
+```bash
+npm run lint
+npm run build
+```
+
+#### 4. Enregistrer toutes les modifications dans Git
+
+```bash
+git add -A
+git status --short
+git diff --cached
+git commit -m "feat: description de la livraison"
+```
+
+`git diff --cached` est la dernière vérification avant l'enregistrement du
+commit. Les nouveaux fichiers SQL et JSON du dossier `drizzle/` doivent y
+apparaître lorsqu'une migration a été générée.
+
+#### 5. Sauvegarder les données avant une migration sensible
+
+Avant une migration qui supprime ou transforme des colonnes, faites un backup
+Supabase ou un export `pg_dump`. Lorsque `SUPABASE_DATABASE_URL` est déjà
+chargée dans l'environnement du terminal :
+
+```bash
+mkdir -p ../plutos-backups
+pg_dump --dbname="$SUPABASE_DATABASE_URL" --format=custom --file="../plutos-backups/plutos-before-release.dump"
+```
+
+Le dossier de backup est volontairement créé en dehors du dépôt. Pour des
+backups réguliers, préférez également les sauvegardes et le Point-in-Time
+Recovery proposés par Supabase.
+
+#### 6. Appliquer la migration à Supabase
+
+Avec la connexion de migration sur le port `5432` présente dans
+`.env.production.local` :
+
+```bash
+NODE_ENV=production npm run db:migrate
+```
+
+Les migrations doivent être compatibles avec la version de l'application qui
+est encore en ligne. Pour un changement destructif, utilisez plusieurs
+livraisons : ajouter la nouvelle structure, migrer les données, déployer le code
+qui l'utilise, puis supprimer l'ancienne structure dans une livraison séparée.
+
+#### 7. Pousser le commit
+
+```bash
+git push origin main
+```
+
+Si l'intégration Git Vercel est active, ce push déclenche déjà le déploiement de
+production. Dans ce cas, il ne faut pas exécuter également `vercel --prod`, car
+cela créerait un deuxième déploiement identique.
+
+#### 8. Déployer manuellement avec Vercel CLI
+
+Lorsque le déploiement automatique Git n'est pas utilisé :
+
+```bash
+vercel --prod
+```
+
+Pour tester une Preview connectée à la base de démonstration :
+
+```bash
+vercel
+vercel ls
+vercel inspect URL_DE_LA_PREVIEW
+```
+
+Cette Preview utilise les variables `preview` et ne doit pas être promue en
+production. Pour tester exactement un artefact construit avec les variables de
+production avant de lui attribuer le domaine principal, créez plutôt un candidat
+de production sans alias :
+
+```bash
+vercel --prod --skip-domain
+vercel inspect URL_DU_CANDIDAT_PRODUCTION
+vercel curl /api/health/database --deployment URL_DU_CANDIDAT_PRODUCTION
+vercel promote URL_DU_CANDIDAT_PRODUCTION
+```
+
+Après le déploiement, vérifiez l'application et la connexion à la base :
+
+```bash
+vercel curl /api/health/database --deployment URL_DU_DEPLOIEMENT
+vercel logs URL_DU_DEPLOIEMENT
+```
+
+### Redéployer, forcer un build ou revenir en arrière
+
+Créer un nouveau déploiement de production à partir du dossier courant :
+
+```bash
+vercel --prod
+```
+
+Recompiler sans réutiliser le cache de build :
+
+```bash
+vercel --prod --force
+```
+
+Redéployer une ancienne URL avec les mêmes sources et réglages :
+
+```bash
+vercel ls
+vercel redeploy URL_DU_DEPLOIEMENT
+```
+
+Promouvoir un candidat construit avec les variables de production sans
+reconstruire :
+
+```bash
+vercel promote URL_DU_CANDIDAT_PRODUCTION
+```
+
+Revenir au déploiement de production précédent :
+
+```bash
+vercel rollback
+```
+
+Un rollback Vercel remet l'ancien code en ligne, mais **n'annule pas une
+migration PostgreSQL**. Les migrations doivent donc rester rétrocompatibles ou
+posséder une procédure de restauration testée.
+
+### Résumé rapide
+
+Pour une livraison ordinaire avec une migration additive et un déploiement
+manuel :
+
+```bash
+npm run db:generate
+npm run db:migrate
+npm run lint
+npm run build
+git add -A
+git diff --cached
+git commit -m "feat: description de la livraison"
+NODE_ENV=production npm run db:migrate
+git push origin main
+vercel --prod
+```
+
+N'utilisez la dernière commande que si le push Git ne déclenche pas déjà Vercel.
+
 ## Getting Started
 
 First, run the development server:
@@ -162,9 +397,3 @@ To learn more about Next.js, take a look at the following resources:
 - [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
 
 You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.

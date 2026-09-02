@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { formatPrice, type PriceSettings } from "@/lib/pricing";
+import { calculateArticleCost } from "@/lib/article-pricing";
 import type { DashboardLanguage } from "../language";
 import { buyArticle } from "./actions";
 import { articlesCopy } from "./copy";
@@ -36,6 +37,10 @@ export type ArticleRecord = {
   purchasePrice: number;
   salePrice: number;
   transportCost: number;
+  paymentCommission: number;
+  chinaTransportCost: number;
+  agencyTransportCost: number;
+  gainMultiplier: number;
   city: string;
   countryCode: string;
   countryName: string;
@@ -47,27 +52,37 @@ export type ArticleRecord = {
   createdAt: string;
 };
 
+export type ArticleCategoryRecord = { id: string; name: string };
+export type OriginCityRecord = { id: string; countryCode: string; name: string };
+
 type SortKey = "name" | "category" | "salePrice" | "rating" | "stock";
 
 function SortButton({
   label,
   value,
   onSort,
+  align = "left",
 }: {
   label: string;
   value: SortKey;
   onSort: (value: SortKey) => void;
+  align?: "left" | "right";
 }) {
   return (
     <Button
       type="button"
       variant="ghost"
       size="sm"
-      className="-ml-2 font-semibold"
+      className={cn(
+        "h-auto min-h-8 max-w-full whitespace-normal px-2 py-1.5 text-xs leading-4 font-semibold",
+        align === "right"
+          ? "ml-auto -mr-2 justify-end text-right"
+          : "-ml-2 justify-start text-left",
+      )}
       onClick={() => onSort(value)}
     >
-      {label}
-      <ArrowUpDown data-icon="inline-end" />
+      <span>{label}</span>
+      <ArrowUpDown className="shrink-0" data-icon="inline-end" />
     </Button>
   );
 }
@@ -76,10 +91,14 @@ export function ArticlesWorkspace({
   articles,
   language,
   priceSettings,
+  categories,
+  originCities,
 }: {
   articles: ArticleRecord[];
   language: DashboardLanguage;
   priceSettings: PriceSettings;
+  categories: ArticleCategoryRecord[];
+  originCities: OriginCityRecord[];
 }) {
   const copy = articlesCopy[language];
   const locale = language === "fr" ? "fr-FR" : "en-US";
@@ -160,14 +179,15 @@ export function ArticlesWorkspace({
             <h1 className="text-2xl font-semibold tracking-tight">{copy.title}</h1>
             <p className="mt-1 text-sm text-muted-foreground">{copy.description}</p>
           </div>
-          <CreateArticleDialog language={language} />
+          <CreateArticleDialog language={language} categories={categories} originCities={originCities} />
         </div>
 
         <Card className="gap-0 overflow-hidden py-0">
           <CardHeader className="border-b px-4 py-4 sm:px-5">
             <div className="flex flex-wrap items-center gap-3">
               <CardTitle className="text-base">
-                {articles.length.toLocaleString(locale)} {copy.title.toLocaleLowerCase(locale)}
+                {articles.length.toLocaleString(locale)}{" "}
+                {(articles.length === 1 ? copy.article : copy.title).toLocaleLowerCase(locale)}
               </CardTitle>
               <div className="relative ml-auto min-w-[220px] flex-1 sm:max-w-sm">
                 <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -182,7 +202,7 @@ export function ArticlesWorkspace({
             </div>
           </CardHeader>
           <CardContent className="p-0">
-            <Table className="min-w-[920px]">
+            <Table className="min-w-[920px] min-[1800px]:min-w-[1420px]">
               <TableHeader>
                 <TableRow className="bg-muted/30 hover:bg-muted/30">
                   <TableHead className="w-12 pl-5">
@@ -192,20 +212,26 @@ export function ArticlesWorkspace({
                       aria-label="Select all"
                     />
                   </TableHead>
-                  <TableHead className="min-w-[320px]">
+                  <TableHead className="min-w-[240px] px-3">
                     <SortButton label={copy.article} value="name" onSort={changeSort} />
                   </TableHead>
-                  <TableHead><SortButton label={copy.category} value="category" onSort={changeSort} /></TableHead>
-                  <TableHead><SortButton label={copy.salePrice} value="salePrice" onSort={changeSort} /></TableHead>
-                  <TableHead><SortButton label={copy.rating} value="rating" onSort={changeSort} /></TableHead>
-                  <TableHead><SortButton label={copy.stock} value="stock" onSort={changeSort} /></TableHead>
+                  <TableHead className="min-w-28 px-3"><SortButton label={copy.category} value="category" onSort={changeSort} /></TableHead>
+                  <TableHead className="min-w-28 px-3 text-right text-xs min-[1800px]:hidden">{copy.totalCost}</TableHead>
+                  <TableHead className="hidden min-w-28 whitespace-normal px-3 text-right text-xs leading-4 min-[1800px]:table-cell">{copy.transportCost}</TableHead>
+                  <TableHead className="hidden min-w-32 whitespace-normal px-3 text-right text-xs leading-4 min-[1800px]:table-cell">{copy.paymentCommission}</TableHead>
+                  <TableHead className="hidden min-w-28 whitespace-normal px-3 text-right text-xs leading-4 min-[1800px]:table-cell">{copy.chinaTransportCost}</TableHead>
+                  <TableHead className="hidden min-w-28 whitespace-normal px-3 text-right text-xs leading-4 min-[1800px]:table-cell">{copy.agencyTransportCost}</TableHead>
+                  <TableHead className="hidden min-w-24 whitespace-normal px-3 text-center text-xs leading-4 min-[1800px]:table-cell">{copy.gainMultiplier}</TableHead>
+                  <TableHead className="min-w-28 px-3"><SortButton label={copy.salePrice} value="salePrice" onSort={changeSort} align="right" /></TableHead>
+                  <TableHead className="hidden px-3 xl:table-cell"><SortButton label={copy.rating} value="rating" onSort={changeSort} /></TableHead>
+                  <TableHead className="min-w-24 px-3"><SortButton label={copy.stock} value="stock" onSort={changeSort} align="right" /></TableHead>
                   <TableHead className="w-28" />
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {visibleArticles.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="h-56 text-center">
+                    <TableCell colSpan={12} className="h-56 text-center">
                       <div className="flex flex-col items-center gap-2 text-muted-foreground">
                         <Package className="size-9" />
                         <p>{copy.noArticles}</p>
@@ -227,9 +253,9 @@ export function ArticlesWorkspace({
                           aria-label={article.name}
                         />
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="px-3">
                         <div className="flex items-center gap-3">
-                          <Avatar className="size-14 rounded-xl">
+                          <Avatar className="size-14 shrink-0 rounded-xl">
                             {article.images[0] && (
                               <AvatarImage className="rounded-xl" src={article.images[0]} alt={article.name} />
                             )}
@@ -243,7 +269,7 @@ export function ArticlesWorkspace({
                               className="block cursor-pointer truncate font-semibold underline-offset-4 hover:underline focus-visible:underline"
                               onClick={(event) => event.stopPropagation()}
                             >{article.name}</Link>
-                            <p className="mt-1 font-mono text-xs text-muted-foreground">
+                            <p className="mt-1 truncate font-mono text-xs text-muted-foreground">
                               {copy.sku}: {article.sku}
                             </p>
                             {article.information && (
@@ -260,14 +286,29 @@ export function ArticlesWorkspace({
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell><Badge variant="secondary">{article.category}</Badge></TableCell>
-                      <TableCell>
+                      <TableCell className="px-3">
+                        <Badge className="max-w-full truncate" variant="secondary" title={article.category}>
+                          {article.category}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="px-3 text-right min-[1800px]:hidden">
+                        <p className="font-semibold tabular-nums">
+                          {formatPrice(calculateArticleCost(article), priceSettings, locale)}
+                        </p>
+                        <p className="text-xs text-muted-foreground">×{article.gainMultiplier.toFixed(2)}</p>
+                      </TableCell>
+                      <TableCell className="hidden px-3 text-right tabular-nums min-[1800px]:table-cell">{formatPrice(article.transportCost, priceSettings, locale)}</TableCell>
+                      <TableCell className="hidden px-3 text-right tabular-nums min-[1800px]:table-cell">{formatPrice(article.paymentCommission, priceSettings, locale)}</TableCell>
+                      <TableCell className="hidden px-3 text-right tabular-nums min-[1800px]:table-cell">{formatPrice(article.chinaTransportCost, priceSettings, locale)}</TableCell>
+                      <TableCell className="hidden px-3 text-right tabular-nums min-[1800px]:table-cell">{formatPrice(article.agencyTransportCost, priceSettings, locale)}</TableCell>
+                      <TableCell className="hidden px-3 text-center font-semibold tabular-nums min-[1800px]:table-cell">×{article.gainMultiplier.toFixed(2)}</TableCell>
+                      <TableCell className="px-3 text-right">
                         <p className="font-semibold tabular-nums">
                           {formatPrice(article.salePrice, priceSettings, locale)}
                         </p>
                       </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1.5">
+                      <TableCell className="hidden px-3 xl:table-cell">
+                        <div className="flex items-center justify-center gap-1.5">
                           <Star className="size-4 fill-current" />
                           <span className="font-medium tabular-nums">
                             {article.reviewCount > 0 ? article.rating.toFixed(1) : "—"}
@@ -275,7 +316,7 @@ export function ArticlesWorkspace({
                           <span className="text-muted-foreground">({article.reviewCount})</span>
                         </div>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="px-3 text-right">
                         <span
                           className={cn(
                             "font-semibold tabular-nums",

@@ -5,7 +5,12 @@ import { and, eq, gt, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { getDatabase } from "@/lib/db/client";
-import { articles } from "@/lib/db/schema";
+import { articleCategories, articles } from "@/lib/db/schema";
+import {
+  calculateSuggestedSalePrice,
+  MAX_GAIN_MULTIPLIER,
+  MIN_GAIN_MULTIPLIER,
+} from "@/lib/article-pricing";
 import { createClient } from "@/lib/supabase/server";
 import { findCountry } from "../orders/countries";
 import type { CreateArticleState } from "./article-state";
@@ -56,19 +61,34 @@ export async function createArticleRecord(
   const city = String(formData.get("city") ?? "").trim();
   const country = findCountry(String(formData.get("country") ?? ""));
   const purchasePrice = Number(formData.get("purchasePrice"));
-  const salePrice = Number(formData.get("salePrice"));
   const transportCost = Number(formData.get("transportCost") || 0);
+  const paymentCommission = Number(formData.get("paymentCommission") || 0);
+  const chinaTransportCost = Number(formData.get("chinaTransportCost") || 0);
+  const agencyTransportCost = Number(formData.get("agencyTransportCost") || 0);
+  const gainMultiplier = Number(formData.get("gainMultiplier") || MIN_GAIN_MULTIPLIER);
+  const stock = Number(formData.get("stock"));
+  const salePrice = calculateSuggestedSalePrice({
+    purchasePrice,
+    transportCost,
+    paymentCommission,
+    chinaTransportCost,
+    agencyTransportCost,
+    gainMultiplier,
+    stock,
+  });
   const information = String(formData.get("information") ?? "").trim();
   const images = parseImages(formData);
-  const stock = Number(formData.get("stock"));
 
   if (
     !name || !category || !supplier || !city || !country ||
     name.length > 180 || category.length > 120 || supplier.length > 160 ||
     requestedSku.length > 64 || city.length > 120 || information.length > 5000 ||
     !Number.isFinite(purchasePrice) || purchasePrice < 0 ||
-    !Number.isFinite(salePrice) || salePrice < 0 ||
     !Number.isFinite(transportCost) || transportCost < 0 ||
+    !Number.isFinite(paymentCommission) || paymentCommission < 0 ||
+    !Number.isFinite(chinaTransportCost) || chinaTransportCost < 0 ||
+    !Number.isFinite(agencyTransportCost) || agencyTransportCost < 0 ||
+    !Number.isFinite(gainMultiplier) || gainMultiplier < MIN_GAIN_MULTIPLIER || gainMultiplier > MAX_GAIN_MULTIPLIER ||
     !Number.isInteger(stock) || stock < 0
   ) {
     return { status: "error", error: "invalid" };
@@ -76,6 +96,16 @@ export async function createArticleRecord(
 
   if (images.length > 8 || images.some((image) => !isValidStoredImage(image))) {
     return { status: "error", error: "invalidImages" };
+  }
+
+  const configuredCategory = await getDatabase()
+    .select({ id: articleCategories.id })
+    .from(articleCategories)
+    .where(and(eq(articleCategories.ownerId, user.id), eq(articleCategories.name, category)))
+    .limit(1);
+
+  if (configuredCategory.length === 0) {
+    return { status: "error", error: "invalidCategory" };
   }
 
   try {
@@ -88,6 +118,10 @@ export async function createArticleRecord(
       purchasePrice: purchasePrice.toFixed(2),
       salePrice: salePrice.toFixed(2),
       transportCost: transportCost.toFixed(2),
+      paymentCommission: paymentCommission.toFixed(2),
+      chinaTransportCost: chinaTransportCost.toFixed(2),
+      agencyTransportCost: agencyTransportCost.toFixed(2),
+      gainMultiplier: gainMultiplier.toFixed(2),
       city,
       countryCode: country.code,
       countryName: country.en,
@@ -121,9 +155,21 @@ export async function updateArticleRecord(
   const supplier = String(formData.get("supplier") ?? "").trim();
   const city = String(formData.get("city") ?? "").trim();
   const purchasePrice = Number(formData.get("purchasePrice"));
-  const salePrice = Number(formData.get("salePrice"));
   const transportCost = Number(formData.get("transportCost") || 0);
+  const paymentCommission = Number(formData.get("paymentCommission") || 0);
+  const chinaTransportCost = Number(formData.get("chinaTransportCost") || 0);
+  const agencyTransportCost = Number(formData.get("agencyTransportCost") || 0);
+  const gainMultiplier = Number(formData.get("gainMultiplier") || MIN_GAIN_MULTIPLIER);
   const stock = Number(formData.get("stock"));
+  const salePrice = calculateSuggestedSalePrice({
+    purchasePrice,
+    transportCost,
+    paymentCommission,
+    chinaTransportCost,
+    agencyTransportCost,
+    gainMultiplier,
+    stock,
+  });
   const information = String(formData.get("information") ?? "").trim();
   const images = parseImages(formData);
 
@@ -132,8 +178,11 @@ export async function updateArticleRecord(
     name.length > 180 || category.length > 120 || supplier.length > 160 ||
     city.length > 120 || information.length > 5000 ||
     !Number.isFinite(purchasePrice) || purchasePrice < 0 ||
-    !Number.isFinite(salePrice) || salePrice < 0 ||
     !Number.isFinite(transportCost) || transportCost < 0 ||
+    !Number.isFinite(paymentCommission) || paymentCommission < 0 ||
+    !Number.isFinite(chinaTransportCost) || chinaTransportCost < 0 ||
+    !Number.isFinite(agencyTransportCost) || agencyTransportCost < 0 ||
+    !Number.isFinite(gainMultiplier) || gainMultiplier < MIN_GAIN_MULTIPLIER || gainMultiplier > MAX_GAIN_MULTIPLIER ||
     !Number.isInteger(stock) || stock < 0 ||
     images.length > 8 || images.some((image) => !isValidStoredImage(image))
   ) return { status: "error", error: "invalid" };
@@ -146,6 +195,10 @@ export async function updateArticleRecord(
     purchasePrice: purchasePrice.toFixed(2),
     salePrice: salePrice.toFixed(2),
     transportCost: transportCost.toFixed(2),
+    paymentCommission: paymentCommission.toFixed(2),
+    chinaTransportCost: chinaTransportCost.toFixed(2),
+    agencyTransportCost: agencyTransportCost.toFixed(2),
+    gainMultiplier: gainMultiplier.toFixed(2),
     stock,
     information: information || null,
     images,

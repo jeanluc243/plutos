@@ -1,36 +1,21 @@
 import type { Metadata } from "next";
 import { asc, desc, eq } from "drizzle-orm";
-import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
 
 import { getDatabase } from "@/lib/db/client";
 import { articles, carriers, orders } from "@/lib/db/schema";
-import { createClient } from "@/lib/supabase/server";
-import { DashboardShell } from "../dashboard-shell";
-import { isDashboardLanguage, type DashboardLanguage } from "../language";
+import { getDashboardContext } from "../dashboard-context";
 import { OrdersWorkspace } from "./orders-workspace";
 
 export const metadata: Metadata = { title: "Commandes" };
 
 export default async function OrdersPage() {
-  const cookieStore = await cookies();
-  const savedLanguage = cookieStore.get("plutos-language")?.value ?? "en";
-  const language: DashboardLanguage = isDashboardLanguage(savedLanguage)
-    ? savedLanguage
-    : "en";
-
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) redirect("/login");
+  const { language, user, isAdmin } = await getDashboardContext();
 
   const [records, carrierRecords, articleRecords] = await Promise.all([
     getDatabase()
       .select()
       .from(orders)
-      .where(eq(orders.ownerId, user.id))
+      .where(isAdmin ? undefined : eq(orders.ownerId, user.id))
       .orderBy(desc(orders.createdAt)),
     getDatabase()
       .select({ id: carriers.id, name: carriers.name, information: carriers.information })
@@ -45,22 +30,16 @@ export default async function OrdersPage() {
   ]);
 
   return (
-    <DashboardShell
-      email={user.email ?? "member@plutos.app"}
+    <OrdersWorkspace
       language={language}
-      activeSection="activeOrders"
-    >
-      <OrdersWorkspace
-        language={language}
-        carriers={carrierRecords}
-        articles={articleRecords}
-        orders={records.map((order) => ({
-          ...order,
-          cbm: order.cbm === null ? null : Number(order.cbm),
-          eta: order.eta.toISOString(),
-          createdAt: order.createdAt.toISOString(),
-        }))}
-      />
-    </DashboardShell>
+      carriers={carrierRecords}
+      articles={articleRecords}
+      orders={records.map((order) => ({
+        ...order,
+        cbm: order.cbm === null ? null : Number(order.cbm),
+        eta: order.eta.toISOString(),
+        createdAt: order.createdAt.toISOString(),
+      }))}
+    />
   );
 }

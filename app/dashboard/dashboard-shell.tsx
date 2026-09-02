@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import {
   Bell,
@@ -52,7 +53,7 @@ const navigation = [
   { copyKey: "articles", icon: Package, href: "/dashboard/articles", expandable: false },
   { copyKey: "projectManagement", icon: FolderKanban, href: null, expandable: true },
   { copyKey: "todos", icon: CheckSquare2, href: "/dashboard/todos", expandable: false },
-  { copyKey: "invoices", icon: ClipboardList, href: null, expandable: true },
+  { copyKey: "invoices", icon: ClipboardList, href: "/dashboard/invoices", expandable: false },
   { copyKey: "contracts", icon: FileSignature, href: null, expandable: true },
   { copyKey: "payments", icon: WalletCards, href: null, expandable: true },
   { copyKey: "calendar", icon: CalendarDays, href: null, expandable: true },
@@ -61,6 +62,17 @@ const navigation = [
 ] as const;
 
 export type DashboardSection = (typeof navigation)[number]["copyKey"];
+
+function getActiveSection(pathname: string): DashboardSection {
+  if (pathname.startsWith("/dashboard/clients")) return "clients";
+  if (pathname.startsWith("/dashboard/orders")) return "activeOrders";
+  if (pathname.startsWith("/dashboard/articles")) return "articles";
+  if (pathname.startsWith("/dashboard/todos")) return "todos";
+  if (pathname.startsWith("/dashboard/invoices")) return "invoices";
+  if (pathname.startsWith("/dashboard/settings")) return "settings";
+  if (pathname.startsWith("/dashboard/projects")) return "projectManagement";
+  return "dashboard";
+}
 
 const projects = [
   { copyKey: "designEngineering", icon: Blocks, href: null },
@@ -111,6 +123,7 @@ function NavigationPanel({
       >
         <Link
           href="/dashboard"
+          prefetch
           className={cn(
             "flex min-w-0 items-center gap-3 rounded-lg outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
             !collapsed && "flex-1",
@@ -166,7 +179,14 @@ function NavigationPanel({
             return href ? (
               <Button
                 key={copyKey}
-                render={<Link href={href} />}
+                render={
+                  <Link
+                    href={href}
+                    prefetch
+                    target={copyKey === "invoices" ? "_blank" : undefined}
+                    rel={copyKey === "invoices" ? "noopener noreferrer" : undefined}
+                  />
+                }
                 nativeButton={false}
                 variant={active ? "secondary" : "ghost"}
                 {...sharedProps}
@@ -329,7 +349,7 @@ function Toolbar({
   const copy = dashboardCopy[language];
 
   return (
-    <header className="flex flex-wrap items-center gap-2 border-b px-4 py-3 sm:px-6">
+    <header className="flex flex-wrap items-center gap-2 border-b px-4 py-3 print:hidden sm:px-6">
       <MobileNavigation email={email} language={language} activeSection={activeSection} />
       <div className="relative min-w-[200px] flex-1 sm:max-w-sm">
         <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -361,14 +381,13 @@ function Toolbar({
 export function DashboardShell({
   email,
   language,
-  activeSection = "dashboard",
   children,
 }: {
   email: string;
   language: DashboardLanguage;
-  activeSection?: DashboardSection;
   children: ReactNode;
 }) {
+  const activeSection = getActiveSection(usePathname());
   const [collapsed, setCollapsed] = useState(false);
 
   useEffect(() => {
@@ -388,7 +407,7 @@ export function DashboardShell({
       <div className="flex min-h-dvh w-full bg-background">
         <aside
           className={cn(
-            "sticky top-0 hidden h-dvh shrink-0 flex-col border-r bg-muted/35 transition-[width] duration-200 ease-out lg:flex",
+            "sticky top-0 hidden h-dvh shrink-0 flex-col border-r bg-muted/35 transition-[width] duration-200 ease-out print:hidden lg:flex",
             collapsed ? "w-20" : "w-[248px]",
           )}
         >

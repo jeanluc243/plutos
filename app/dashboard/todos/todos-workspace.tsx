@@ -17,6 +17,7 @@ import { CreateTodoDialog } from "./create-todo-dialog";
 
 export type TodoRecord = {
   id: string;
+  ownerId: string;
   title: string;
   description: string | null;
   priority: "low" | "medium" | "high";
@@ -30,9 +31,11 @@ type TodoFilter = "all" | "pending" | "completed";
 export function TodosWorkspace({
   todos,
   language,
+  currentUserId,
 }: {
   todos: TodoRecord[];
   language: DashboardLanguage;
+  currentUserId: string;
 }) {
   const copy = todosCopy[language];
   const locale = language === "fr" ? "fr-FR" : "en-US";
@@ -138,6 +141,7 @@ export function TodosWorkspace({
                 {visibleTodos.map((todo) => {
                   const dueAt = todo.dueAt ? new Date(todo.dueAt) : null;
                   const loading = isPending && updatingId === todo.id;
+                  const canUpdate = todo.ownerId === currentUserId;
 
                   return (
                     <div key={todo.id} className="flex items-start gap-3 px-4 py-4 sm:px-5">
@@ -147,6 +151,7 @@ export function TodosWorkspace({
                         ) : (
                           <Checkbox
                             checked={todo.completed}
+                            disabled={!canUpdate}
                             onCheckedChange={(checked) => toggleTodo(todo, checked)}
                             aria-label={todo.completed ? copy.markPending : copy.markComplete}
                           />

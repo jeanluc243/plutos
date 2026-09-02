@@ -93,6 +93,26 @@ export function ArticleDetailSheet({
                     <p className="text-xs text-muted-foreground">{copy.salePrice}</p>
                     <p className="mt-1 font-mono font-semibold text-primary">{formatPrice(article.salePrice, priceSettings, locale)}</p>
                   </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">{copy.transportCost}</p>
+                    <p className="mt-1 font-mono font-medium">{formatPrice(article.transportCost, priceSettings, locale)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">{copy.paymentCommission}</p>
+                    <p className="mt-1 font-mono font-medium">{formatPrice(article.paymentCommission, priceSettings, locale)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">{copy.chinaTransportCost}</p>
+                    <p className="mt-1 font-mono font-medium">{formatPrice(article.chinaTransportCost, priceSettings, locale)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">{copy.agencyTransportCost}</p>
+                    <p className="mt-1 font-mono font-medium">{formatPrice(article.agencyTransportCost, priceSettings, locale)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground">{copy.gainMultiplier}</p>
+                    <p className="mt-1 font-mono font-medium">×{article.gainMultiplier.toFixed(2)}</p>
+                  </div>
                 </CardContent>
               </Card>
 

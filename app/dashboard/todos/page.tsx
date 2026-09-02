@@ -1,35 +1,20 @@
 import type { Metadata } from "next";
 import { asc, desc, eq, sql } from "drizzle-orm";
-import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
 
 import { getDatabase } from "@/lib/db/client";
 import { todos } from "@/lib/db/schema";
-import { createClient } from "@/lib/supabase/server";
-import { DashboardShell } from "../dashboard-shell";
-import { isDashboardLanguage, type DashboardLanguage } from "../language";
+import { getDashboardContext } from "../dashboard-context";
 import { TodosWorkspace, type TodoRecord } from "./todos-workspace";
 
 export const metadata: Metadata = { title: "To-do's" };
 
 export default async function TodosPage() {
-  const cookieStore = await cookies();
-  const savedLanguage = cookieStore.get("plutos-language")?.value ?? "en";
-  const language: DashboardLanguage = isDashboardLanguage(savedLanguage)
-    ? savedLanguage
-    : "en";
-
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) redirect("/login");
+  const { language, user, isAdmin } = await getDashboardContext();
 
   const records = await getDatabase()
     .select()
     .from(todos)
-    .where(eq(todos.ownerId, user.id))
+    .where(isAdmin ? undefined : eq(todos.ownerId, user.id))
     .orderBy(
       asc(todos.completed),
       sql`${todos.dueAt} asc nulls last`,
@@ -38,6 +23,7 @@ export default async function TodosPage() {
 
   const serializedTodos: TodoRecord[] = records.map((todo) => ({
     id: todo.id,
+    ownerId: todo.ownerId,
     title: todo.title,
     description: todo.description,
     priority: todo.priority as TodoRecord["priority"],
@@ -46,13 +32,5 @@ export default async function TodosPage() {
     createdAt: todo.createdAt.toISOString(),
   }));
 
-  return (
-    <DashboardShell
-      email={user.email ?? "member@plutos.app"}
-      language={language}
-      activeSection="todos"
-    >
-      <TodosWorkspace todos={serializedTodos} language={language} />
-    </DashboardShell>
-  );
+  return <TodosWorkspace todos={serializedTodos} language={language} currentUserId={user.id} />;
 }

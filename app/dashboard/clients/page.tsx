@@ -1,30 +1,15 @@
 import type { Metadata } from "next";
 import { desc, eq } from "drizzle-orm";
-import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
 
 import { getDatabase } from "@/lib/db/client";
 import { clients } from "@/lib/db/schema";
-import { createClient } from "@/lib/supabase/server";
 import { ClientsTable } from "./clients-table";
-import { DashboardShell } from "../dashboard-shell";
-import { isDashboardLanguage, type DashboardLanguage } from "../language";
+import { getDashboardContext } from "../dashboard-context";
 
 export const metadata: Metadata = { title: "Clients" };
 
 export default async function ClientsPage() {
-  const cookieStore = await cookies();
-  const savedLanguage = cookieStore.get("plutos-language")?.value ?? "en";
-  const language: DashboardLanguage = isDashboardLanguage(savedLanguage)
-    ? savedLanguage
-    : "en";
-
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) redirect("/login");
+  const { language, user, isAdmin } = await getDashboardContext();
 
   const records = await getDatabase()
     .select({
@@ -35,22 +20,16 @@ export default async function ClientsPage() {
       createdAt: clients.createdAt,
     })
     .from(clients)
-    .where(eq(clients.ownerId, user.id))
+    .where(isAdmin ? undefined : eq(clients.ownerId, user.id))
     .orderBy(desc(clients.createdAt));
 
   return (
-    <DashboardShell
-      email={user.email ?? "member@plutos.app"}
+    <ClientsTable
       language={language}
-      activeSection="clients"
-    >
-      <ClientsTable
-        language={language}
-        clients={records.map((client) => ({
-          ...client,
-          createdAt: client.createdAt.toISOString(),
-        }))}
-      />
-    </DashboardShell>
+      clients={records.map((client) => ({
+        ...client,
+        createdAt: client.createdAt.toISOString(),
+      }))}
+    />
   );
 }

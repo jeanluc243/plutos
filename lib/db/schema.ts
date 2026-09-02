@@ -17,6 +17,33 @@ import {
 
 const authenticatedRole = pgRole("authenticated").existing();
 
+export const appUsers = pgTable(
+  "app_users",
+  {
+    id: uuid("id").primaryKey(),
+    email: varchar("email", { length: 320 }).notNull(),
+    role: varchar("role", { length: 16 }).default("user").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    uniqueIndex("app_users_email_unique").on(table.email),
+    check("app_users_role_valid", sql`${table.role} IN ('user', 'admin')`),
+    pgPolicy("app_users_self_read", {
+      for: "select",
+      to: authenticatedRole,
+      using: sql`auth.uid() = ${table.id}`,
+    }),
+  ],
+).enableRLS();
+
+export type AppUser = typeof appUsers.$inferSelect;
+export type NewAppUser = typeof appUsers.$inferInsert;
+
 export const clients = pgTable(
   "clients",
   {
@@ -42,6 +69,11 @@ export const clients = pgTable(
       to: authenticatedRole,
       using: sql`auth.uid() = ${table.ownerId}`,
       withCheck: sql`auth.uid() = ${table.ownerId}`,
+    }),
+    pgPolicy("clients_admin_read", {
+      for: "select",
+      to: authenticatedRole,
+      using: sql`public.is_admin()`,
     }),
   ],
 ).enableRLS();
@@ -81,6 +113,11 @@ export const todos = pgTable(
       to: authenticatedRole,
       using: sql`auth.uid() = ${table.ownerId}`,
       withCheck: sql`auth.uid() = ${table.ownerId}`,
+    }),
+    pgPolicy("todos_admin_read", {
+      for: "select",
+      to: authenticatedRole,
+      using: sql`public.is_admin()`,
     }),
   ],
 ).enableRLS();
@@ -144,6 +181,11 @@ export const orders = pgTable(
       using: sql`auth.uid() = ${table.ownerId}`,
       withCheck: sql`auth.uid() = ${table.ownerId}`,
     }),
+    pgPolicy("orders_admin_read", {
+      for: "select",
+      to: authenticatedRole,
+      using: sql`public.is_admin()`,
+    }),
   ],
 ).enableRLS();
 
@@ -162,6 +204,10 @@ export const articles = pgTable(
     purchasePrice: numeric("purchase_price", { precision: 12, scale: 2 }).notNull(),
     salePrice: numeric("sale_price", { precision: 12, scale: 2 }).notNull(),
     transportCost: numeric("transport_cost", { precision: 12, scale: 2 }).default("0").notNull(),
+    paymentCommission: numeric("payment_commission", { precision: 12, scale: 2 }).default("0").notNull(),
+    chinaTransportCost: numeric("china_transport_cost", { precision: 12, scale: 2 }).default("0").notNull(),
+    agencyTransportCost: numeric("agency_transport_cost", { precision: 12, scale: 2 }).default("0").notNull(),
+    gainMultiplier: numeric("gain_multiplier", { precision: 4, scale: 2 }).default("1.5").notNull(),
     city: varchar("city", { length: 120 }).notNull(),
     countryCode: varchar("country_code", { length: 2 }).notNull(),
     countryName: varchar("country_name", { length: 80 }).notNull(),
@@ -188,6 +234,10 @@ export const articles = pgTable(
     check("articles_purchase_price_positive", sql`${table.purchasePrice} >= 0`),
     check("articles_sale_price_positive", sql`${table.salePrice} >= 0`),
     check("articles_transport_cost_positive", sql`${table.transportCost} >= 0`),
+    check("articles_payment_commission_positive", sql`${table.paymentCommission} >= 0`),
+    check("articles_china_transport_cost_positive", sql`${table.chinaTransportCost} >= 0`),
+    check("articles_agency_transport_cost_positive", sql`${table.agencyTransportCost} >= 0`),
+    check("articles_gain_multiplier_range", sql`${table.gainMultiplier} >= 1.5 AND ${table.gainMultiplier} <= 10`),
     check("articles_country_code_length", sql`length(${table.countryCode}) = 2`),
     check("articles_rating_range", sql`${table.rating} >= 0 AND ${table.rating} <= 5`),
     check("articles_review_count_positive", sql`${table.reviewCount} >= 0`),
@@ -197,6 +247,11 @@ export const articles = pgTable(
       to: authenticatedRole,
       using: sql`auth.uid() = ${table.ownerId}`,
       withCheck: sql`auth.uid() = ${table.ownerId}`,
+    }),
+    pgPolicy("articles_admin_read", {
+      for: "select",
+      to: authenticatedRole,
+      using: sql`public.is_admin()`,
     }),
   ],
 ).enableRLS();
@@ -228,11 +283,74 @@ export const carriers = pgTable(
       using: sql`auth.uid() = ${table.ownerId}`,
       withCheck: sql`auth.uid() = ${table.ownerId}`,
     }),
+    pgPolicy("carriers_admin_read", {
+      for: "select",
+      to: authenticatedRole,
+      using: sql`public.is_admin()`,
+    }),
   ],
 ).enableRLS();
 
 export type Carrier = typeof carriers.$inferSelect;
 export type NewCarrier = typeof carriers.$inferInsert;
+
+export const articleCategories = pgTable(
+  "article_categories",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    ownerId: uuid("owner_id").notNull(),
+    name: varchar("name", { length: 120 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("article_categories_owner_id_idx").on(table.ownerId),
+    uniqueIndex("article_categories_owner_name_unique").on(table.ownerId, table.name),
+    check("article_categories_name_not_empty", sql`length(trim(${table.name})) > 0`),
+    pgPolicy("article_categories_owner_access", {
+      for: "all",
+      to: authenticatedRole,
+      using: sql`auth.uid() = ${table.ownerId}`,
+      withCheck: sql`auth.uid() = ${table.ownerId}`,
+    }),
+    pgPolicy("article_categories_admin_read", {
+      for: "select",
+      to: authenticatedRole,
+      using: sql`public.is_admin()`,
+    }),
+  ],
+).enableRLS();
+
+export type ArticleCategory = typeof articleCategories.$inferSelect;
+export type NewArticleCategory = typeof articleCategories.$inferInsert;
+
+export const originCities = pgTable(
+  "origin_cities",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    ownerId: uuid("owner_id").notNull(),
+    countryCode: varchar("country_code", { length: 2 }).notNull(),
+    name: varchar("name", { length: 120 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("origin_cities_owner_country_idx").on(table.ownerId, table.countryCode),
+    uniqueIndex("origin_cities_owner_country_name_unique").on(table.ownerId, table.countryCode, table.name),
+    check("origin_cities_country_code_length", sql`length(${table.countryCode}) = 2`),
+    check("origin_cities_name_not_empty", sql`length(trim(${table.name})) > 0`),
+    pgPolicy("origin_cities_owner_access", {
+      for: "all", to: authenticatedRole,
+      using: sql`auth.uid() = ${table.ownerId}`,
+      withCheck: sql`auth.uid() = ${table.ownerId}`,
+    }),
+  ],
+).enableRLS();
+
+export type OriginCity = typeof originCities.$inferSelect;
 
 export const userSettings = pgTable(
   "user_settings",
@@ -262,6 +380,11 @@ export const userSettings = pgTable(
       to: authenticatedRole,
       using: sql`auth.uid() = ${table.ownerId}`,
       withCheck: sql`auth.uid() = ${table.ownerId}`,
+    }),
+    pgPolicy("user_settings_admin_read", {
+      for: "select",
+      to: authenticatedRole,
+      using: sql`public.is_admin()`,
     }),
   ],
 ).enableRLS();

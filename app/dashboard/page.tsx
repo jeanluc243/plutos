@@ -1,6 +1,4 @@
 import type { Metadata } from "next";
-import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
 import {
   ArrowDownToLine,
   Bell,
@@ -35,15 +33,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { createClient } from "@/lib/supabase/server";
 import { getUserPriceSettings } from "@/lib/db/user-settings";
 import { formatPrice, type PriceSettings } from "@/lib/pricing";
-import { DashboardShell } from "./dashboard-shell";
+import { getDashboardContext } from "./dashboard-context";
 import {
   dashboardCopy,
-  isDashboardLanguage,
   type DashboardCopy,
-  type DashboardLanguage,
 } from "./language";
 
 export const metadata: Metadata = { title: "Dashboard" };
@@ -251,26 +246,14 @@ function RecentProjects({
 }
 
 export default async function DashboardPage() {
-  const cookieStore = await cookies();
-  const savedLanguage = cookieStore.get("plutos-language")?.value ?? "en";
-  const language: DashboardLanguage = isDashboardLanguage(savedLanguage)
-    ? savedLanguage
-    : "en";
+  const { language, user } = await getDashboardContext();
   const copy = dashboardCopy[language];
-
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) redirect("/login");
 
   const priceSettings = await getUserPriceSettings(user.id);
   const locale = language === "fr" ? "fr-FR" : "en-US";
 
   return (
-    <DashboardShell email={user.email ?? "member@plutos.app"} language={language}>
-      <div className="space-y-5 p-4 sm:p-6">
+    <div className="space-y-5 p-4 sm:p-6">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-sm text-muted-foreground">{copy.workspaceOverview}</p>
@@ -317,7 +300,6 @@ export default async function DashboardPage() {
                 </TabsContent>
               ))}
             </Tabs>
-      </div>
-    </DashboardShell>
+    </div>
   );
 }

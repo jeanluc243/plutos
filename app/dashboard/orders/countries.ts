@@ -26,6 +26,29 @@ export const countries = [
 
 export type CountryCode = (typeof countries)[number]["code"];
 
+const articleOriginCountryCodes = ["CN", "TZ", "ZM", "ZA", "AE", "CD"] as const;
+
+export const articleOriginCountries = countries.filter((country) =>
+  articleOriginCountryCodes.includes(country.code as (typeof articleOriginCountryCodes)[number]),
+);
+
+export const defaultArticleOriginCities = {
+  CN: ["Guangzhou", "Yiwu", "Shenzhen"],
+  TZ: ["Dar es Salaam"],
+  ZM: ["Lusaka"],
+  ZA: ["Johannesburg"],
+  AE: ["Dubai"],
+  CD: ["Kinshasa", "Lubumbashi"],
+} as const;
+
+export function isArticleOriginCountry(code: string) {
+  return articleOriginCountryCodes.includes(code as (typeof articleOriginCountryCodes)[number]);
+}
+
+export function defaultCitiesForArticleOrigin(code: string) {
+  return defaultArticleOriginCities[code as keyof typeof defaultArticleOriginCities] ?? [];
+}
+
 const citiesByCountry = {
   CN: [
     { value: "Beijing", en: "Beijing", fr: "Pékin" },
