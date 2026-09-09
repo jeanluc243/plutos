@@ -5,7 +5,6 @@ import { ArrowDown, ArrowUp, CheckCircle2, LoaderCircle, Save } from "lucide-rea
 import { useRouter } from "next/navigation";
 
 import { Alert, AlertTitle } from "@/components/ui/alert";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -20,6 +19,7 @@ import {
 import type { DashboardLanguage } from "../../language";
 import { updateArticleRecord, reorderArticleImages } from "../actions";
 import { initialCreateArticleState } from "../article-state";
+import { ArticleThumbnail } from "../article-thumbnail";
 
 export function ArticleEditor({ article, language }: {
   article: {
@@ -121,7 +121,13 @@ export function ArticleEditor({ article, language }: {
         <CardContent className="space-y-3">
           {images.length === 0 ? <p className="text-sm text-muted-foreground">{fr ? "Aucune photo." : "No photos."}</p> : images.map((image, index) => (
             <div key={image} className="flex items-center gap-3 rounded-lg border p-2">
-              <Avatar className="h-16 w-20 rounded-md"><AvatarImage src={image} className="rounded-md object-cover" /><AvatarFallback>{index + 1}</AvatarFallback></Avatar>
+              <ArticleThumbnail
+                src={image}
+                alt={`${fr ? "Photo" : "Photo"} ${index + 1}`}
+                className="h-16 w-20 rounded-md"
+                sizes="80px"
+                fallback={<span>{index + 1}</span>}
+              />
               <span className="flex-1 text-sm font-medium">{fr ? "Photo" : "Photo"} {index + 1}</span>
               <Button type="button" size="icon-sm" variant="outline" disabled={index === 0} onClick={() => moveImage(index, -1)}><ArrowUp /><span className="sr-only">Up</span></Button>
               <Button type="button" size="icon-sm" variant="outline" disabled={index === images.length - 1} onClick={() => moveImage(index, 1)}><ArrowDown /><span className="sr-only">Down</span></Button>

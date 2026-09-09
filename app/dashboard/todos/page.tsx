@@ -27,10 +27,19 @@ export default async function TodosPage() {
     title: todo.title,
     description: todo.description,
     priority: todo.priority as TodoRecord["priority"],
+    tag: todo.tag as TodoRecord["tag"],
+    image: todo.image,
     dueAt: todo.dueAt?.toISOString() ?? null,
     completed: todo.completed,
     createdAt: todo.createdAt.toISOString(),
   }));
 
-  return <TodosWorkspace todos={serializedTodos} language={language} currentUserId={user.id} />;
+  return (
+    <TodosWorkspace
+      todos={serializedTodos}
+      language={language}
+      currentUserId={user.id}
+      canManageAll={isAdmin}
+    />
+  );
 }

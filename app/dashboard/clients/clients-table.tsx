@@ -51,6 +51,8 @@ import { CreateClientDialog } from "./create-client-dialog";
 
 export type ClientRecord = {
   id: string;
+  ownerId: string;
+  canManage: boolean;
   name: string;
   phone: string;
   hasWhatsApp: boolean;

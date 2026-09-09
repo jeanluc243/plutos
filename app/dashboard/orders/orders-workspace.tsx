@@ -29,6 +29,7 @@ import { Input } from "@/components/ui/input";
 import { Progress, ProgressLabel } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { formatPrice, type PriceSettings } from "@/lib/pricing";
 import { cn } from "@/lib/utils";
 import type { DashboardLanguage } from "../language";
 import { countryName } from "./countries";
@@ -54,6 +55,9 @@ export type OrderRecord = {
   cargo: string;
   carrier: string;
   transportMode: string;
+  quantity: number;
+  purchaseUnitPrice: number;
+  createdByEmail: string | null;
   totalWeightKg: number | null;
   cbm: number | null;
   status: string;
@@ -78,11 +82,13 @@ export function OrdersWorkspace({
   orders,
   carriers,
   articles,
+  priceSettings,
 }: {
   language: DashboardLanguage;
   orders: OrderRecord[];
   carriers: { id: string; name: string; information: string | null }[];
   articles: OrderArticleOption[];
+  priceSettings: PriceSettings;
 }) {
   const copy = ordersCopy[language];
   const locale = language === "fr" ? "fr-FR" : "en-US";
@@ -158,8 +164,8 @@ export function OrdersWorkspace({
         }}
         className="gap-0"
       >
-        <div className="border-b bg-background px-4 sm:px-6">
-          <TabsList variant="line" className="h-12 gap-5">
+        <div className="overflow-x-auto border-b bg-background px-3 sm:px-6">
+          <TabsList variant="line" className="h-12 min-w-max gap-5">
             <TabsTrigger value="all">{copy.all} ({counts.all})</TabsTrigger>
             <TabsTrigger value="in_transit">{copy.inTransit} ({counts.in_transit})</TabsTrigger>
             <TabsTrigger value="delivered">{copy.delivered} ({counts.delivered})</TabsTrigger>
@@ -167,10 +173,10 @@ export function OrdersWorkspace({
           </TabsList>
         </div>
 
-        <TabsContent value={filter} className="m-0 p-4 sm:p-6">
-          <div className="grid min-h-[680px] gap-4 min-[1100px]:grid-cols-[360px_minmax(0,1fr)]">
+        <TabsContent value={filter} className="m-0 p-0 min-[1100px]:p-6">
+          <div className="grid gap-0 min-[1100px]:min-h-[680px] min-[1100px]:grid-cols-[360px_minmax(0,1fr)] min-[1100px]:gap-4">
             <div className="space-y-3">
-              <div className="relative">
+              <div className="relative px-3 pt-3 min-[1100px]:px-0 min-[1100px]:pt-0">
                 <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   value={query}
@@ -181,9 +187,9 @@ export function OrdersWorkspace({
                 />
               </div>
 
-              <div className="max-h-[620px] space-y-3 overflow-y-auto pr-1">
+              <div className="space-y-0 overflow-visible min-[1100px]:max-h-[620px] min-[1100px]:space-y-3 min-[1100px]:overflow-y-auto min-[1100px]:pr-1">
                 {filteredOrders.length === 0 ? (
-                  <Card>
+                  <Card className="rounded-none border-x-0 shadow-none min-[1100px]:rounded-xl min-[1100px]:border">
                     <CardContent className="flex min-h-40 flex-col items-center justify-center gap-2 text-center text-muted-foreground">
                       <Package className="size-8" />
                       <p className="text-sm">{copy.noOrders}</p>
@@ -199,30 +205,31 @@ export function OrdersWorkspace({
                         variant="outline"
                         onClick={() => setSelectedId(order.id)}
                         className={cn(
-                          "h-auto w-full flex-col items-stretch gap-4 rounded-xl bg-card px-0 py-4 text-left whitespace-normal hover:bg-muted/40 dark:bg-card dark:hover:bg-muted/30",
-                          active && "border-primary",
+                          "h-auto w-full flex-col items-stretch gap-2 rounded-none border-x-0 border-t-0 bg-transparent px-0 py-2 text-left whitespace-normal shadow-none hover:bg-muted/40 min-[1100px]:gap-4 min-[1100px]:rounded-xl min-[1100px]:border min-[1100px]:bg-card min-[1100px]:py-4 dark:bg-transparent dark:hover:bg-muted/30 min-[1100px]:dark:bg-card",
+                          active && "border-b-primary bg-muted/30 min-[1100px]:border-primary",
                         )}
                         aria-pressed={active}
                       >
-                        <div className="flex w-full flex-col gap-4">
-                          <CardHeader className="px-4">
-                            <div className="flex items-start justify-between gap-3">
+                        <div className="flex w-full flex-col gap-2 min-[1100px]:gap-4">
+                          <CardHeader className="gap-0 px-3 min-[1100px]:gap-1 min-[1100px]:px-4">
+                            <div className="flex items-start justify-between gap-2 min-[1100px]:gap-3">
                               <div>
-                                <CardTitle className="font-mono text-sm">{order.reference}</CardTitle>
-                                <CardDescription className="mt-1">{order.cargo}</CardDescription>
+                                <CardTitle className="font-mono text-xs min-[1100px]:text-sm">{order.reference}</CardTitle>
+                                <CardDescription className="mt-0.5 text-xs min-[1100px]:mt-1 min-[1100px]:text-sm">{order.cargo}</CardDescription>
                               </div>
                               <Badge
                                 variant={order.status === "delayed" ? "destructive" : "secondary"}
+                                className="h-5 px-1.5 text-[11px] min-[1100px]:h-auto min-[1100px]:px-2"
                               >
                                 {statusIcon(order.status)}
                                 {statusLabel(order.status)}
                               </Badge>
                             </div>
                           </CardHeader>
-                          <CardContent className="space-y-4 px-4">
-                            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 text-sm">
+                          <CardContent className="space-y-2 px-3 min-[1100px]:space-y-4 min-[1100px]:px-4">
+                            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-1.5 text-xs min-[1100px]:gap-2 min-[1100px]:text-sm">
                               <div className="min-w-0">
-                                <div className="flex items-center gap-2 font-medium">
+                                <div className="flex items-center gap-1.5 font-medium min-[1100px]:gap-2">
                                   <CountryFlag
                                     code={order.originCountryCode}
                                     label={countryName(order.originCountryCode, language)}
@@ -230,7 +237,7 @@ export function OrdersWorkspace({
                                   <span className="font-mono">{order.originCountryCode}</span>
                                 </div>
                                 {order.originCity && (
-                                  <p className="truncate text-xs text-muted-foreground">{order.originCity}</p>
+                                  <p className="truncate text-[11px] text-muted-foreground min-[1100px]:text-xs">{order.originCity}</p>
                                 )}
                               </div>
                               <div className="flex items-center gap-1 text-muted-foreground">
@@ -239,7 +246,7 @@ export function OrdersWorkspace({
                                 <Separator className="w-5" />
                               </div>
                               <div className="min-w-0 text-right">
-                                <div className="flex items-center justify-end gap-2 font-medium">
+                                <div className="flex items-center justify-end gap-1.5 font-medium min-[1100px]:gap-2">
                                   <span className="font-mono">{order.destinationCountryCode}</span>
                                   <CountryFlag
                                     code={order.destinationCountryCode}
@@ -247,11 +254,11 @@ export function OrdersWorkspace({
                                   />
                                 </div>
                                 {order.destinationCity && (
-                                  <p className="truncate text-xs text-muted-foreground">{order.destinationCity}</p>
+                                  <p className="truncate text-[11px] text-muted-foreground min-[1100px]:text-xs">{order.destinationCity}</p>
                                 )}
                               </div>
                             </div>
-                            <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+                            <div className="flex items-center justify-between gap-3 text-[11px] text-muted-foreground min-[1100px]:text-xs">
                               <span>{order.carrier}</span>
                               <span>{formatDate(order.eta)}</span>
                             </div>
@@ -265,8 +272,8 @@ export function OrdersWorkspace({
             </div>
 
             {selectedOrder ? (
-              <Card className="gap-0 overflow-hidden py-0">
-                <CardHeader className="border-b px-5 py-5 sm:px-6">
+              <Card className="mt-3 gap-0 overflow-hidden rounded-none border-x-0 border-b-0 py-0 shadow-none min-[1100px]:mt-0 min-[1100px]:rounded-xl min-[1100px]:border min-[1100px]:shadow-sm">
+                <CardHeader className="border-b px-4 py-4 sm:px-6 sm:py-5">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <CardDescription>{copy.orderDetails}</CardDescription>
@@ -279,7 +286,7 @@ export function OrdersWorkspace({
                   </div>
                 </CardHeader>
 
-                <CardContent className="space-y-6 p-5 sm:p-6">
+                <CardContent className="space-y-6 p-4 sm:p-6">
                   <Progress value={selectedOrder.progress}>
                     <ProgressLabel>{selectedOrder.carrier}</ProgressLabel>
                     <span className="ml-auto text-sm text-muted-foreground tabular-nums">
@@ -307,6 +314,10 @@ export function OrdersWorkspace({
                             <p className="mt-1 font-medium">{selectedOrder.totalWeightKg.toLocaleString(locale)} kg</p>
                           </div>
                         )}
+                        <div>
+                          <p className="text-xs text-muted-foreground">{copy.quantity}</p>
+                          <p className="mt-1 font-medium">{selectedOrder.quantity.toLocaleString(locale)}</p>
+                        </div>
                         {selectedOrder.cbm !== null && (
                           <div>
                             <p className="text-xs text-muted-foreground">{copy.cbm}</p>
@@ -329,9 +340,29 @@ export function OrdersWorkspace({
                       <Separator />
 
                       <div>
+                        <h2 className="text-sm font-semibold">{copy.purchaseInformation}</h2>
+                        <div className="mt-4 grid gap-4 sm:grid-cols-3">
+                          <div>
+                            <p className="text-xs text-muted-foreground">{copy.purchaseUnitPrice}</p>
+                            <p className="mt-1 font-medium">{formatPrice(selectedOrder.purchaseUnitPrice, priceSettings, locale)}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">{copy.totalPurchase}</p>
+                            <p className="mt-1 font-medium">{formatPrice(selectedOrder.purchaseUnitPrice * selectedOrder.quantity, priceSettings, locale)}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">{copy.createdBy}</p>
+                            <p className="mt-1 break-all font-medium">{selectedOrder.createdByEmail ?? "—"}</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <Separator />
+
+                      <div>
                         <h2 className="text-sm font-semibold">{copy.routeSummary}</h2>
-                        <div className="mt-4 grid gap-4 sm:grid-cols-[1fr_auto_1fr] sm:items-center">
-                          <div className="rounded-lg border bg-muted/20 p-4">
+                        <div className="mt-4 grid gap-4 min-[1100px]:grid-cols-[1fr_auto_1fr] min-[1100px]:items-center">
+                          <div className="border-b pb-4 min-[1100px]:rounded-lg min-[1100px]:border min-[1100px]:bg-muted/20 min-[1100px]:p-4">
                             <CountryFlag
                               code={selectedOrder.originCountryCode}
                               label={countryName(selectedOrder.originCountryCode, language)}
@@ -342,12 +373,12 @@ export function OrdersWorkspace({
                               <p className="text-sm text-muted-foreground">{selectedOrder.originCity}</p>
                             )}
                           </div>
-                          <div className="hidden items-center gap-2 text-muted-foreground sm:flex">
+                          <div className="hidden items-center gap-2 text-muted-foreground min-[1100px]:flex">
                             <Separator className="w-8" />
                             <TransportIcon mode={selectedOrder.transportMode} />
                             <Separator className="w-8" />
                           </div>
-                          <div className="rounded-lg border bg-muted/20 p-4 sm:text-right">
+                          <div className="pt-1 min-[1100px]:rounded-lg min-[1100px]:border min-[1100px]:bg-muted/20 min-[1100px]:p-4 min-[1100px]:text-right">
                             <CountryFlag
                               code={selectedOrder.destinationCountryCode}
                               label={countryName(selectedOrder.destinationCountryCode, language)}
@@ -391,6 +422,7 @@ export function OrdersWorkspace({
                         <AlertDescription>
                           {[
                             selectedOrder.cargo,
+                            `${selectedOrder.quantity.toLocaleString(locale)} ${copy.quantity.toLocaleLowerCase(locale)}`,
                             selectedOrder.totalWeightKg !== null
                               ? `${selectedOrder.totalWeightKg.toLocaleString(locale)} kg`
                               : null,
@@ -409,7 +441,7 @@ export function OrdersWorkspace({
                           <CheckCircle2 className="mt-0.5 size-4 text-primary" />
                           <div>
                             <p className="text-sm font-medium">{copy.created}</p>
-                            <p className="text-xs text-muted-foreground">{formatDate(selectedOrder.createdAt)}</p>
+                            <p className="text-xs text-muted-foreground">{formatDate(selectedOrder.createdAt)}{selectedOrder.createdByEmail ? ` · ${selectedOrder.createdByEmail}` : ""}</p>
                           </div>
                         </div>
                         <div className="flex gap-3">
@@ -425,7 +457,7 @@ export function OrdersWorkspace({
                 </CardContent>
               </Card>
             ) : (
-              <Card>
+              <Card className="rounded-none border-x-0 border-b-0 shadow-none min-[1100px]:rounded-xl min-[1100px]:border min-[1100px]:shadow-sm">
                 <CardContent className="flex min-h-[420px] flex-col items-center justify-center gap-3 text-center text-muted-foreground">
                   <Package className="size-10" />
                   <p>{copy.noSelection}</p>

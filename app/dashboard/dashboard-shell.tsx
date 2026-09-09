@@ -18,6 +18,7 @@ import {
   Menu,
   MoreHorizontal,
   Package,
+  PackageOpen,
   PanelLeftClose,
   PanelLeftOpen,
   Plus,
@@ -51,6 +52,7 @@ const navigation = [
   { copyKey: "clients", icon: Users, href: "/dashboard/clients", expandable: false },
   { copyKey: "activeOrders", icon: ShoppingCart, href: "/dashboard/orders", expandable: false },
   { copyKey: "articles", icon: Package, href: "/dashboard/articles", expandable: false },
+  { copyKey: "stock", icon: PackageOpen, href: "/dashboard/stock", expandable: false },
   { copyKey: "projectManagement", icon: FolderKanban, href: null, expandable: true },
   { copyKey: "todos", icon: CheckSquare2, href: "/dashboard/todos", expandable: false },
   { copyKey: "invoices", icon: ClipboardList, href: "/dashboard/invoices", expandable: false },
@@ -67,6 +69,7 @@ function getActiveSection(pathname: string): DashboardSection {
   if (pathname.startsWith("/dashboard/clients")) return "clients";
   if (pathname.startsWith("/dashboard/orders")) return "activeOrders";
   if (pathname.startsWith("/dashboard/articles")) return "articles";
+  if (pathname.startsWith("/dashboard/stock")) return "stock";
   if (pathname.startsWith("/dashboard/todos")) return "todos";
   if (pathname.startsWith("/dashboard/invoices")) return "invoices";
   if (pathname.startsWith("/dashboard/settings")) return "settings";

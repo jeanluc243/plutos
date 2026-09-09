@@ -1,11 +1,9 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
-import { ArrowUpDown, ImageIcon, LoaderCircle, Package, Search, Star } from "lucide-react";
+import { useMemo, useState } from "react";
+import { ArrowUpDown, Eye, EyeOff, ImageIcon, Package, Search } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,9 +19,8 @@ import {
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { formatPrice, type PriceSettings } from "@/lib/pricing";
-import { calculateArticleCost } from "@/lib/article-pricing";
 import type { DashboardLanguage } from "../language";
-import { buyArticle } from "./actions";
+import { ArticleThumbnail } from "./article-thumbnail";
 import { articlesCopy } from "./copy";
 import { CreateArticleDialog } from "./create-article-dialog";
 import { ArticleDetailSheet } from "./article-detail-sheet";
@@ -34,7 +31,7 @@ export type ArticleRecord = {
   name: string;
   category: string;
   supplier: string;
-  purchasePrice: number;
+  purchasePrice: number | null;
   salePrice: number;
   transportCost: number;
   paymentCommission: number;
@@ -54,8 +51,27 @@ export type ArticleRecord = {
 
 export type ArticleCategoryRecord = { id: string; name: string };
 export type OriginCityRecord = { id: string; countryCode: string; name: string };
+export type ArticleOrderRecord = {
+  id: string;
+  articleId: string;
+  reference: string;
+  carrier: string;
+  status: string;
+  createdAt: string;
+};
+export type ArticleStockMovementRecord = {
+  id: string;
+  articleId: string;
+  movementType: string;
+  quantityChange: number;
+  stockBefore: number;
+  stockAfter: number;
+  reason: string | null;
+  createdByEmail: string | null;
+  createdAt: string;
+};
 
-type SortKey = "name" | "category" | "salePrice" | "rating" | "stock";
+type SortKey = "name" | "category" | "purchasePrice" | "salePrice" | "rating" | "stock";
 
 function SortButton({
   label,
@@ -69,47 +85,49 @@ function SortButton({
   align?: "left" | "right";
 }) {
   return (
-    <Button
+    <button
       type="button"
-      variant="ghost"
-      size="sm"
       className={cn(
-        "h-auto min-h-8 max-w-full whitespace-normal px-2 py-1.5 text-xs leading-4 font-semibold",
+        "group/sort flex h-7 w-full max-w-full cursor-pointer items-center gap-1 whitespace-nowrap text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
         align === "right"
-          ? "ml-auto -mr-2 justify-end text-right"
-          : "-ml-2 justify-start text-left",
+          ? "justify-end text-right"
+          : "justify-start text-left",
       )}
       onClick={() => onSort(value)}
     >
       <span>{label}</span>
-      <ArrowUpDown className="shrink-0" data-icon="inline-end" />
-    </Button>
+      <ArrowUpDown className="size-3 shrink-0 opacity-60 transition-opacity group-hover/sort:opacity-100" />
+    </button>
   );
 }
 
 export function ArticlesWorkspace({
   articles,
   language,
+  isAdmin,
   priceSettings,
   categories,
   originCities,
+  orderHistory,
+  stockHistory,
 }: {
   articles: ArticleRecord[];
   language: DashboardLanguage;
+  isAdmin: boolean;
   priceSettings: PriceSettings;
   categories: ArticleCategoryRecord[];
   originCities: OriginCityRecord[];
+  orderHistory: ArticleOrderRecord[];
+  stockHistory: ArticleStockMovementRecord[];
 }) {
   const copy = articlesCopy[language];
   const locale = language === "fr" ? "fr-FR" : "en-US";
-  const router = useRouter();
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [sortKey, setSortKey] = useState<SortKey>("name");
   const [descending, setDescending] = useState(false);
-  const [buyingId, setBuyingId] = useState<string | null>(null);
   const [detailArticle, setDetailArticle] = useState<ArticleRecord | null>(null);
-  const [isPending, startTransition] = useTransition();
+  const [purchasePricesVisible, setPurchasePricesVisible] = useState(false);
 
   const visibleArticles = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase(locale);
@@ -123,10 +141,10 @@ export function ArticlesWorkspace({
       )
       .toSorted((first, second) => {
         const direction = descending ? -1 : 1;
-        if (sortKey === "salePrice" || sortKey === "rating" || sortKey === "stock") {
-          return (first[sortKey] - second[sortKey]) * direction;
+        if (sortKey === "name" || sortKey === "category") {
+          return first[sortKey].localeCompare(second[sortKey], locale) * direction;
         }
-        return first[sortKey].localeCompare(second[sortKey], locale) * direction;
+        return ((Number(first[sortKey]) || 0) - (Number(second[sortKey]) || 0)) * direction;
       });
   }, [articles, descending, locale, query, sortKey]);
 
@@ -162,39 +180,32 @@ export function ArticlesWorkspace({
     });
   }
 
-  function purchase(id: string) {
-    setBuyingId(id);
-    startTransition(async () => {
-      await buyArticle(id);
-      router.refresh();
-      setBuyingId(null);
-    });
-  }
-
   return (
-    <div className="min-h-[calc(100dvh-73px)] bg-muted/20 p-4 sm:p-6">
-      <div className="mx-auto max-w-[1500px] space-y-4">
-        <div className="flex flex-wrap items-center gap-4">
+    <div className="min-h-[calc(100dvh-73px)] bg-muted/20 p-3 sm:p-5">
+      <div className="w-full space-y-3">
+        <div className="flex flex-wrap items-center gap-3">
           <div className="min-w-0 flex-1">
             <h1 className="text-2xl font-semibold tracking-tight">{copy.title}</h1>
-            <p className="mt-1 text-sm text-muted-foreground">{copy.description}</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {isAdmin ? copy.description : copy.userDescription}
+            </p>
           </div>
           <CreateArticleDialog language={language} categories={categories} originCities={originCities} />
         </div>
 
         <Card className="gap-0 overflow-hidden py-0">
-          <CardHeader className="border-b px-4 py-4 sm:px-5">
-            <div className="flex flex-wrap items-center gap-3">
-              <CardTitle className="text-base">
+          <CardHeader className="border-b px-3 py-3 sm:px-4">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <CardTitle className="text-sm font-medium">
                 {articles.length.toLocaleString(locale)}{" "}
                 {(articles.length === 1 ? copy.article : copy.title).toLocaleLowerCase(locale)}
               </CardTitle>
               <div className="relative ml-auto min-w-[220px] flex-1 sm:max-w-sm">
-                <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
-                  className="pl-9"
+                  className="h-8 pl-8 text-sm"
                   placeholder={copy.search}
                   aria-label={copy.search}
                 />
@@ -202,36 +213,49 @@ export function ArticlesWorkspace({
             </div>
           </CardHeader>
           <CardContent className="p-0">
-            <Table className="min-w-[920px] min-[1800px]:min-w-[1420px]">
+            <Table className={cn("table-fixed", isAdmin ? "min-w-[760px]" : "min-w-[640px]")}>
+              <colgroup>
+                <col className="w-11" />
+              </colgroup>
               <TableHeader>
                 <TableRow className="bg-muted/30 hover:bg-muted/30">
-                  <TableHead className="w-12 pl-5">
+                  <TableHead className="h-9 w-11 px-0 text-center">
                     <Checkbox
                       checked={allSelected}
                       onCheckedChange={toggleAll}
                       aria-label="Select all"
                     />
                   </TableHead>
-                  <TableHead className="min-w-[240px] px-3">
+                  <TableHead className="h-9 w-[29%] px-0">
                     <SortButton label={copy.article} value="name" onSort={changeSort} />
                   </TableHead>
-                  <TableHead className="min-w-28 px-3"><SortButton label={copy.category} value="category" onSort={changeSort} /></TableHead>
-                  <TableHead className="min-w-28 px-3 text-right text-xs min-[1800px]:hidden">{copy.totalCost}</TableHead>
-                  <TableHead className="hidden min-w-28 whitespace-normal px-3 text-right text-xs leading-4 min-[1800px]:table-cell">{copy.transportCost}</TableHead>
-                  <TableHead className="hidden min-w-32 whitespace-normal px-3 text-right text-xs leading-4 min-[1800px]:table-cell">{copy.paymentCommission}</TableHead>
-                  <TableHead className="hidden min-w-28 whitespace-normal px-3 text-right text-xs leading-4 min-[1800px]:table-cell">{copy.chinaTransportCost}</TableHead>
-                  <TableHead className="hidden min-w-28 whitespace-normal px-3 text-right text-xs leading-4 min-[1800px]:table-cell">{copy.agencyTransportCost}</TableHead>
-                  <TableHead className="hidden min-w-24 whitespace-normal px-3 text-center text-xs leading-4 min-[1800px]:table-cell">{copy.gainMultiplier}</TableHead>
-                  <TableHead className="min-w-28 px-3"><SortButton label={copy.salePrice} value="salePrice" onSort={changeSort} align="right" /></TableHead>
-                  <TableHead className="hidden px-3 xl:table-cell"><SortButton label={copy.rating} value="rating" onSort={changeSort} /></TableHead>
-                  <TableHead className="min-w-24 px-3"><SortButton label={copy.stock} value="stock" onSort={changeSort} align="right" /></TableHead>
-                  <TableHead className="w-28" />
+                  <TableHead className="h-9 w-[17%] px-2"><SortButton label={copy.category} value="category" onSort={changeSort} align="right" /></TableHead>
+                  {isAdmin && (
+                    <TableHead className="h-9 w-32 px-2">
+                      <div className="flex items-center justify-end gap-0.5">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-xs"
+                          aria-label={purchasePricesVisible ? copy.hidePurchasePrices : copy.showPurchasePrices}
+                          title={purchasePricesVisible ? copy.hidePurchasePrices : copy.showPurchasePrices}
+                          onClick={() => setPurchasePricesVisible((visible) => !visible)}
+                        >
+                          {purchasePricesVisible ? <EyeOff /> : <Eye />}
+                        </Button>
+                        <SortButton label={copy.purchasePrice} value="purchasePrice" onSort={changeSort} align="right" />
+                      </div>
+                    </TableHead>
+                  )}
+                  <TableHead className="h-9 w-28 px-2"><SortButton label={copy.salePrice} value="salePrice" onSort={changeSort} align="right" /></TableHead>
+                  <TableHead className="h-9 w-[60px] px-2"><SortButton label={copy.rating} value="rating" onSort={changeSort} align="right" /></TableHead>
+                  <TableHead className="h-9 w-20 px-2"><SortButton label={copy.stock} value="stock" onSort={changeSort} align="right" /></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {visibleArticles.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={12} className="h-56 text-center">
+                    <TableCell colSpan={isAdmin ? 7 : 6} className="h-56 text-center">
                       <div className="flex flex-col items-center gap-2 text-muted-foreground">
                         <Package className="size-9" />
                         <p>{copy.noArticles}</p>
@@ -243,42 +267,42 @@ export function ArticlesWorkspace({
                     <TableRow
                       key={article.id}
                       data-state={selected.has(article.id) ? "selected" : undefined}
-                      className="group/article h-24 cursor-pointer"
+                      className="group/article h-[68px] cursor-pointer"
                       onClick={() => setDetailArticle(article)}
                     >
-                      <TableCell className="pl-5" onClick={(event) => event.stopPropagation()}>
+                      <TableCell className="w-11 px-0 py-2 text-center" onClick={(event) => event.stopPropagation()}>
                         <Checkbox
                           checked={selected.has(article.id)}
                           onCheckedChange={(checked) => toggleOne(article.id, checked)}
                           aria-label={article.name}
                         />
                       </TableCell>
-                      <TableCell className="px-3">
-                        <div className="flex items-center gap-3">
-                          <Avatar className="size-14 shrink-0 rounded-xl">
-                            {article.images[0] && (
-                              <AvatarImage className="rounded-xl" src={article.images[0]} alt={article.name} />
-                            )}
-                            <AvatarFallback className="rounded-xl"><Package /></AvatarFallback>
-                          </Avatar>
+                      <TableCell className="px-0 py-2 text-left">
+                        <div className="flex min-w-0 items-center gap-1.5">
+                          <ArticleThumbnail
+                            src={article.images[0]}
+                            alt={article.name}
+                            className="size-10 shrink-0 rounded-lg"
+                            fallback={<Package className="size-4" />}
+                          />
                           <div className="min-w-0">
                             <Link
                               href={`/dashboard/articles/${article.id}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="block cursor-pointer line-clamp-2 font-semibold leading-5 underline-offset-4 hover:underline focus-visible:underline"
+                              className="block truncate text-left text-sm font-semibold underline-offset-4 hover:underline focus-visible:underline"
                               onClick={(event) => event.stopPropagation()}
                             >{article.name}</Link>
-                            <p className="mt-1 truncate font-mono text-xs text-muted-foreground">
+                            <p className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground">
                               {copy.sku}: {article.sku}
                             </p>
                             {article.information && (
-                              <p className="mt-1 max-w-64 truncate text-xs text-muted-foreground">
+                              <p className="mt-0.5 hidden max-w-64 truncate text-xs text-muted-foreground xl:block">
                                 {article.information}
                               </p>
                             )}
                             {article.images.length > 1 && (
-                              <span className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+                              <span className="mt-0.5 hidden items-center gap-1 text-xs text-muted-foreground xl:flex">
                                 <ImageIcon className="size-3" />
                                 {article.images.length}
                               </span>
@@ -286,40 +310,37 @@ export function ArticlesWorkspace({
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell className="px-3">
-                        <Badge className="max-w-full truncate" variant="secondary" title={article.category}>
+                      <TableCell className="px-2 py-2 text-right">
+                        <Badge className="max-w-full truncate px-2 py-0 text-[11px] font-medium" variant="secondary" title={article.category}>
                           {article.category}
                         </Badge>
                       </TableCell>
-                      <TableCell className="px-3 text-right min-[1800px]:hidden">
-                        <p className="font-semibold tabular-nums">
-                          {formatPrice(calculateArticleCost(article), priceSettings, locale)}
-                        </p>
-                        <p className="text-xs text-muted-foreground">×{article.gainMultiplier.toFixed(2)}</p>
-                      </TableCell>
-                      <TableCell className="hidden px-3 text-right tabular-nums min-[1800px]:table-cell">{formatPrice(article.transportCost, priceSettings, locale)}</TableCell>
-                      <TableCell className="hidden px-3 text-right tabular-nums min-[1800px]:table-cell">{formatPrice(article.paymentCommission, priceSettings, locale)}</TableCell>
-                      <TableCell className="hidden px-3 text-right tabular-nums min-[1800px]:table-cell">{formatPrice(article.chinaTransportCost, priceSettings, locale)}</TableCell>
-                      <TableCell className="hidden px-3 text-right tabular-nums min-[1800px]:table-cell">{formatPrice(article.agencyTransportCost, priceSettings, locale)}</TableCell>
-                      <TableCell className="hidden px-3 text-center font-semibold tabular-nums min-[1800px]:table-cell">×{article.gainMultiplier.toFixed(2)}</TableCell>
-                      <TableCell className="px-3 text-right">
-                        <p className="font-semibold tabular-nums">
+                      {isAdmin && (
+                        <TableCell className="px-2 py-2 text-right">
+                          <p className="truncate font-mono text-[13px] font-medium tabular-nums">
+                            {purchasePricesVisible && article.purchasePrice !== null
+                              ? formatPrice(article.purchasePrice, priceSettings, locale)
+                              : "••••••"}
+                          </p>
+                        </TableCell>
+                      )}
+                      <TableCell className="px-2 py-2 text-right">
+                        <p className="truncate font-mono text-[13px] font-semibold tabular-nums text-foreground">
                           {formatPrice(article.salePrice, priceSettings, locale)}
                         </p>
                       </TableCell>
-                      <TableCell className="hidden px-3 xl:table-cell">
-                        <div className="flex items-center justify-center gap-1.5">
-                          <Star className="size-4 fill-current" />
-                          <span className="font-medium tabular-nums">
-                            {article.reviewCount > 0 ? article.rating.toFixed(1) : "—"}
-                          </span>
-                          <span className="text-muted-foreground">({article.reviewCount})</span>
-                        </div>
+                      <TableCell className="px-2 py-2 text-right">
+                        <span className="font-mono text-[13px] font-medium tabular-nums">
+                          {article.rating.toLocaleString(locale, {
+                            minimumFractionDigits: 1,
+                            maximumFractionDigits: 1,
+                          })}
+                        </span>
                       </TableCell>
-                      <TableCell className="px-3 text-right">
+                      <TableCell className="px-2 py-2 text-right">
                         <span
                           className={cn(
-                            "font-semibold tabular-nums",
+                            "whitespace-nowrap font-mono text-[13px] font-medium tabular-nums",
                             article.stock === 0 && "text-destructive",
                             article.stock > 0 && article.stock < 20 && "text-destructive",
                             article.stock >= 20 && article.stock < 50 && "text-status-warning",
@@ -328,24 +349,6 @@ export function ArticlesWorkspace({
                         >
                           {article.stock} {copy.units}
                         </span>
-                      </TableCell>
-                      <TableCell className="pr-5 text-right">
-                        <Button
-                          type="button"
-                          className="min-w-24"
-                          disabled={article.stock === 0 || (isPending && buyingId === article.id)}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            purchase(article.id);
-                          }}
-                        >
-                          {isPending && buyingId === article.id && <LoaderCircle className="animate-spin" />}
-                          {article.stock === 0
-                            ? copy.outOfStock
-                            : isPending && buyingId === article.id
-                              ? copy.buying
-                              : copy.buy}
-                        </Button>
                       </TableCell>
                     </TableRow>
                   ))
@@ -357,7 +360,11 @@ export function ArticlesWorkspace({
         <ArticleDetailSheet
           article={detailArticle}
           language={language}
+          canViewPurchasePrice={isAdmin}
+          showPurchasePrice={purchasePricesVisible}
           priceSettings={priceSettings}
+          orders={detailArticle ? orderHistory.filter((order) => order.articleId === detailArticle.id) : []}
+          movements={detailArticle ? stockHistory.filter((movement) => movement.articleId === detailArticle.id) : []}
           onClose={() => setDetailArticle(null)}
         />
       </div>

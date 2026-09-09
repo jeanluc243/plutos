@@ -1,12 +1,12 @@
 "use client";
 
-import { CalendarDays, ImageIcon, MapPin, Package, Star, Store } from "lucide-react";
+import { CalendarDays, ImageIcon, MapPin, Package, Store } from "lucide-react";
 
 import { CountryFlag } from "@/components/country-flag";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   Sheet,
   SheetContent,
@@ -17,18 +17,27 @@ import {
 import { formatPrice, type PriceSettings } from "@/lib/pricing";
 import type { DashboardLanguage } from "../language";
 import { countryName } from "../orders/countries";
-import type { ArticleRecord } from "./articles-workspace";
+import type { ArticleOrderRecord, ArticleRecord, ArticleStockMovementRecord } from "./articles-workspace";
+import { ArticleThumbnail } from "./article-thumbnail";
 import { articlesCopy } from "./copy";
 
 export function ArticleDetailSheet({
   article,
   language,
+  canViewPurchasePrice,
+  showPurchasePrice,
   priceSettings,
+  orders,
+  movements,
   onClose,
 }: {
   article: ArticleRecord | null;
   language: DashboardLanguage;
+  canViewPurchasePrice: boolean;
+  showPurchasePrice: boolean;
   priceSettings: PriceSettings;
+  orders: ArticleOrderRecord[];
+  movements: ArticleStockMovementRecord[];
   onClose: () => void;
 }) {
   const copy = articlesCopy[language];
@@ -41,12 +50,12 @@ export function ArticleDetailSheet({
           <>
             <SheetHeader className="border-b pr-12">
               <div className="flex items-start gap-3">
-                <Avatar className="size-14 rounded-xl">
-                  {article.images[0] && (
-                    <AvatarImage src={article.images[0]} alt={article.name} className="rounded-xl object-cover" />
-                  )}
-                  <AvatarFallback className="rounded-xl"><Package /></AvatarFallback>
-                </Avatar>
+                <ArticleThumbnail
+                  src={article.images[0]}
+                  alt={article.name}
+                  className="size-14"
+                  fallback={<Package className="size-5" />}
+                />
                 <div className="min-w-0">
                   <SheetTitle className="truncate text-lg">{article.name}</SheetTitle>
                   <SheetDescription className="mt-1 font-mono">{article.sku}</SheetDescription>
@@ -66,10 +75,14 @@ export function ArticleDetailSheet({
                 {article.images.length > 0 ? (
                   <div className="grid grid-cols-2 gap-2">
                     {article.images.map((image, index) => (
-                      <Avatar key={`${article.id}-${index}`} className="h-36 w-full rounded-xl border">
-                        <AvatarImage src={image} alt={`${article.name} ${index + 1}`} className="rounded-xl object-cover" />
-                        <AvatarFallback className="rounded-xl"><ImageIcon /></AvatarFallback>
-                      </Avatar>
+                      <ArticleThumbnail
+                        key={`${article.id}-${index}`}
+                        src={image}
+                        alt={`${article.name} ${index + 1}`}
+                        className="h-36 w-full"
+                        sizes="(min-width: 640px) 256px, 50vw"
+                        fallback={<ImageIcon className="size-6" />}
+                      />
                     ))}
                   </div>
                 ) : (
@@ -85,10 +98,16 @@ export function ArticleDetailSheet({
                   <CardTitle>{copy.pricing}</CardTitle>
                 </CardHeader>
                 <CardContent className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-xs text-muted-foreground">{copy.purchasePrice}</p>
-                    <p className="mt-1 font-mono font-medium">{formatPrice(article.purchasePrice, priceSettings, locale)}</p>
-                  </div>
+                  {canViewPurchasePrice && (
+                    <div>
+                      <p className="text-xs text-muted-foreground">{copy.purchasePrice}</p>
+                      <p className="mt-1 font-mono font-medium">
+                        {showPurchasePrice && article.purchasePrice !== null
+                          ? formatPrice(article.purchasePrice, priceSettings, locale)
+                          : "••••••"}
+                      </p>
+                    </div>
+                  )}
                   <div>
                     <p className="text-xs text-muted-foreground">{copy.salePrice}</p>
                     <p className="mt-1 font-mono font-semibold text-primary">{formatPrice(article.salePrice, priceSettings, locale)}</p>
@@ -157,12 +176,64 @@ export function ArticleDetailSheet({
 
               <Separator />
 
+              <div className="grid gap-3">
+                <div>
+                  <h3 className="font-medium">{copy.stockHistory}</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">{copy.stockHistoryDescription}</p>
+                </div>
+                <div className="overflow-hidden rounded-lg border">
+                  <Table>
+                    <TableHeader><TableRow><TableHead>{copy.stockMovement}</TableHead><TableHead>{copy.quantity}</TableHead><TableHead>{copy.stock}</TableHead><TableHead>{copy.createdBy}</TableHead></TableRow></TableHeader>
+                    <TableBody>
+                      {movements.length === 0 ? <TableRow><TableCell colSpan={4} className="h-24 text-center text-muted-foreground">{copy.noStockMovements}</TableCell></TableRow> : movements.map((movement) => (
+                        <TableRow key={movement.id}>
+                          <TableCell><p>{movement.reason || copy.stockMovement}</p><p className="text-xs text-muted-foreground">{new Date(movement.createdAt).toLocaleDateString(locale)}</p></TableCell>
+                          <TableCell className={movement.quantityChange > 0 ? "font-mono text-primary" : "font-mono text-destructive"}>{movement.quantityChange > 0 ? "+" : ""}{movement.quantityChange}</TableCell>
+                          <TableCell className="font-mono">{movement.stockBefore} → {movement.stockAfter}</TableCell>
+                          <TableCell className="max-w-32 truncate text-muted-foreground">{movement.createdByEmail ?? "—"}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+
+              <Separator />
+
+              <div id="order-history" className="grid gap-3">
+                <div>
+                  <h3 className="font-medium">{copy.orderHistory}</h3>
+                  <p className="mt-1 text-sm text-muted-foreground">{copy.orderHistoryDescription}</p>
+                </div>
+                <div className="overflow-hidden rounded-lg border">
+                  <Table>
+                    <TableHeader><TableRow><TableHead>{copy.reference}</TableHead><TableHead>{copy.carrier}</TableHead><TableHead>{copy.status}</TableHead><TableHead>{copy.orderDate}</TableHead></TableRow></TableHeader>
+                    <TableBody>
+                      {orders.length === 0 ? (
+                        <TableRow><TableCell colSpan={4} className="h-24 text-center text-muted-foreground">{copy.noOrders}</TableCell></TableRow>
+                      ) : orders.map((order) => (
+                        <TableRow key={order.id}>
+                          <TableCell className="font-mono text-xs">{order.reference}</TableCell>
+                          <TableCell>{order.carrier}</TableCell>
+                          <TableCell><Badge variant="outline">{order.status.replaceAll("_", " ")}</Badge></TableCell>
+                          <TableCell className="whitespace-nowrap text-muted-foreground">{new Date(order.createdAt).toLocaleDateString(locale)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+
+              <Separator />
+
               <div className="grid gap-2">
                 <h3 className="font-medium">{copy.rating}</h3>
-                <div className="flex items-center gap-2">
-                  <Star className="size-4 fill-current" />
-                  <span className="font-mono font-medium">
-                    {article.reviewCount > 0 ? article.rating.toFixed(1) : "—"}
+                <div className="flex items-baseline gap-2">
+                  <span className="font-mono text-2xl font-semibold">
+                    {article.rating.toLocaleString(locale, {
+                      minimumFractionDigits: 1,
+                      maximumFractionDigits: 1,
+                    })}
                   </span>
                   <span className="text-muted-foreground">({article.reviewCount} {copy.reviews})</span>
                 </div>

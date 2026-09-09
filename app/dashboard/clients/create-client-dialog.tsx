@@ -24,7 +24,15 @@ import {
   type CreateClientState,
 } from "./client-state";
 
-export function CreateClientDialog({ language }: { language: DashboardLanguage }) {
+export function CreateClientDialog({
+  language,
+  inline = false,
+  onCreated,
+}: {
+  language: DashboardLanguage;
+  inline?: boolean;
+  onCreated?: (client: { id: string; name: string; phone: string }) => void;
+}) {
   const copy = dashboardCopy[language];
   const [open, setOpen] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
@@ -34,6 +42,7 @@ export function CreateClientDialog({ language }: { language: DashboardLanguage }
   ) => {
     const nextState = await createClientRecord(previousState, formData);
     if (nextState.status === "success") {
+      if (nextState.client) onCreated?.(nextState.client);
       formRef.current?.reset();
       setOpen(false);
     }
@@ -44,7 +53,16 @@ export function CreateClientDialog({ language }: { language: DashboardLanguage }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger render={<Button />}>
+      <DialogTrigger
+        render={
+          <Button
+            type="button"
+            variant={inline ? "ghost" : "default"}
+            size={inline ? "sm" : "default"}
+            className={inline ? "h-auto px-0 py-0 text-xs text-muted-foreground hover:bg-transparent hover:text-foreground" : undefined}
+          />
+        }
+      >
         <Plus data-icon="inline-start" />
         {copy.newClient}
       </DialogTrigger>

@@ -3,9 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ImagePlus, Trash2, Upload } from "lucide-react";
 
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { ArticleThumbnail } from "./article-thumbnail";
 
 export type PendingArticleImage = {
   id: string;
@@ -147,10 +147,13 @@ export function ArticleImagePicker({
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           {images.map((image) => (
             <div key={image.id} className="relative rounded-xl border bg-muted/20 p-2">
-              <Avatar className="h-24 w-full rounded-lg">
-                <AvatarImage src={image.dataUrl} alt={image.name} className="rounded-lg object-cover" />
-                <AvatarFallback className="rounded-lg"><ImagePlus /></AvatarFallback>
-              </Avatar>
+              <ArticleThumbnail
+                src={image.dataUrl}
+                alt={image.name}
+                className="h-24 w-full"
+                sizes="(min-width: 640px) 140px, 50vw"
+                fallback={<ImagePlus className="size-5" />}
+              />
               <Button
                 type="button"
                 variant="destructive"

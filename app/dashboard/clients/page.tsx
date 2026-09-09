@@ -14,6 +14,7 @@ export default async function ClientsPage() {
   const records = await getDatabase()
     .select({
       id: clients.id,
+      ownerId: clients.ownerId,
       name: clients.name,
       phone: clients.phone,
       hasWhatsApp: clients.hasWhatsApp,
@@ -28,6 +29,7 @@ export default async function ClientsPage() {
       language={language}
       clients={records.map((client) => ({
         ...client,
+        canManage: isAdmin || client.ownerId === user.id,
         createdAt: client.createdAt.toISOString(),
       }))}
     />

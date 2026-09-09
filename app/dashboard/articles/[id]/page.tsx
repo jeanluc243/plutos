@@ -77,7 +77,7 @@ export default async function ArticlePage({ params }: { params: Promise<{ id: st
           </p>
         )}
 
-        <Card>
+        <Card id="order-history">
           <CardHeader><CardTitle>{fr ? "Historique des commandes" : "Order history"}</CardTitle></CardHeader>
           <CardContent className="p-0">
             <Table><TableHeader><TableRow><TableHead>{fr ? "Référence" : "Reference"}</TableHead><TableHead>{fr ? "Transporteur" : "Carrier"}</TableHead><TableHead>{fr ? "Statut" : "Status"}</TableHead><TableHead>{fr ? "Créée le" : "Created"}</TableHead></TableRow></TableHeader><TableBody>

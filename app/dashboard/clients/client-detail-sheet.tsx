@@ -1,11 +1,26 @@
 "use client";
 
-import { CalendarDays, CheckCircle2, MessageCircle, Phone, UserRound } from "lucide-react";
+import { useActionState, useState, useTransition } from "react";
+import { CalendarDays, CheckCircle2, LoaderCircle, MessageCircle, Pencil, Phone, Save, Trash2, UserRound } from "lucide-react";
+import { useRouter } from "next/navigation";
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Sheet,
   SheetContent,
@@ -14,7 +29,10 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { Switch } from "@/components/ui/switch";
 import { dashboardCopy, type DashboardLanguage } from "../language";
+import { deleteClientRecord, updateClientRecord } from "./actions";
+import { initialCreateClientState, type CreateClientState } from "./client-state";
 import type { ClientRecord } from "./clients-table";
 
 function initials(name: string) {
@@ -35,16 +53,56 @@ export function ClientDetailSheet({
   language: DashboardLanguage;
   onClose: () => void;
 }) {
-  const copy = dashboardCopy[language];
-  const locale = language === "fr" ? "fr-FR" : "en-US";
-  const whatsAppNumber = client?.phone.replace(/\D/g, "") ?? "";
-  const canWriteOnWhatsApp = Boolean(client?.hasWhatsApp && whatsAppNumber);
-
   return (
     <Sheet open={client !== null} onOpenChange={(open) => !open && onClose()}>
       <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-md">
         {client && (
-          <>
+          <ClientDetail key={client.id} client={client} language={language} onClose={onClose} />
+        )}
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function ClientDetail({
+  client,
+  language,
+  onClose,
+}: {
+  client: ClientRecord;
+  language: DashboardLanguage;
+  onClose: () => void;
+}) {
+  const copy = dashboardCopy[language];
+  const locale = language === "fr" ? "fr-FR" : "en-US";
+  const router = useRouter();
+  const [editing, setEditing] = useState(false);
+  const [deleting, startDeleteTransition] = useTransition();
+  const updateAction = updateClientRecord.bind(null, client.id);
+  const [state, formAction, saving] = useActionState(async (previousState: CreateClientState, formData: FormData) => {
+    const result = await updateAction(previousState, formData);
+    if (result.status === "success") {
+      setEditing(false);
+      router.refresh();
+    }
+    return result;
+  }, initialCreateClientState);
+  const whatsAppNumber = client.phone.replace(/\D/g, "");
+  const canWriteOnWhatsApp = Boolean(client.hasWhatsApp && whatsAppNumber);
+  const errorMessage = state.error ? copy.createClientErrors[state.error] : null;
+
+  function deleteClient() {
+    startDeleteTransition(async () => {
+      const result = await deleteClientRecord(client.id);
+      if (result.status === "success") {
+        onClose();
+        router.refresh();
+      }
+    });
+  }
+
+  return (
+    <>
             <SheetHeader className="border-b pr-12">
               <div className="flex items-start gap-3">
                 <Avatar className="size-14 rounded-xl">
@@ -62,6 +120,31 @@ export function ClientDetailSheet({
             </SheetHeader>
 
             <div className="grid gap-5 px-4 pb-6">
+              {editing ? (
+                <form action={formAction} className="grid gap-4 rounded-xl border p-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor={`client-name-${client.id}`}>{copy.fullName}</Label>
+                    <Input id={`client-name-${client.id}`} name="name" defaultValue={client.name} maxLength={160} required />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor={`client-phone-${client.id}`}>{copy.phone}</Label>
+                    <Input id={`client-phone-${client.id}`} name="phone" defaultValue={client.phone} inputMode="tel" maxLength={32} required />
+                  </div>
+                  <div className="flex items-center justify-between gap-4 rounded-lg border p-3">
+                    <Label htmlFor={`client-whatsapp-${client.id}`}>{copy.hasWhatsApp}</Label>
+                    <Switch id={`client-whatsapp-${client.id}`} name="hasWhatsApp" defaultChecked={client.hasWhatsApp} />
+                  </div>
+                  {errorMessage && <p role="alert" className="text-sm text-destructive">{errorMessage}</p>}
+                  <div className="flex justify-end gap-2">
+                    <Button type="button" variant="outline" disabled={saving} onClick={() => setEditing(false)}>{copy.cancel}</Button>
+                    <Button type="submit" disabled={saving}>
+                      {saving ? <LoaderCircle className="animate-spin" /> : <Save />}
+                      {saving ? copy.savingClient : copy.saveClient}
+                    </Button>
+                  </div>
+                </form>
+              ) : (
+                <>
               <Card size="sm">
                 <CardHeader>
                   <CardTitle>{copy.phone}</CardTitle>
@@ -101,6 +184,8 @@ export function ClientDetailSheet({
                   </div>
                 </div>
               </div>
+                </>
+              )}
             </div>
 
             <SheetFooter className="border-t">
@@ -125,10 +210,34 @@ export function ClientDetailSheet({
                   {copy.writeOnWhatsApp}
                 </Button>
               )}
+              {client.canManage && !editing && (
+                <div className="grid w-full grid-cols-2 gap-2">
+                  <Button type="button" variant="outline" onClick={() => setEditing(true)}>
+                    <Pencil data-icon="inline-start" />
+                    {copy.editClient}
+                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger render={<Button type="button" variant="destructive" />}>
+                      <Trash2 data-icon="inline-start" />
+                      {copy.deleteClient}
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>{copy.deleteClient}</AlertDialogTitle>
+                        <AlertDialogDescription>{copy.deleteClientConfirmation}</AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>{copy.cancel}</AlertDialogCancel>
+                        <AlertDialogAction variant="destructive" disabled={deleting} onClick={deleteClient}>
+                          {deleting && <LoaderCircle className="animate-spin" />}
+                          {deleting ? copy.deletingClient : copy.deleteClient}
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              )}
             </SheetFooter>
-          </>
-        )}
-      </SheetContent>
-    </Sheet>
+    </>
   );
 }

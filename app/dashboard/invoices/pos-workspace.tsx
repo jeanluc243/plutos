@@ -1,8 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useActionState, useMemo, useState } from "react";
 import {
   Banknote,
+  Check,
+  ChevronDown,
   CreditCard,
   Minus,
   Package,
@@ -28,6 +30,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -36,7 +45,13 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { formatPrice, type PriceSettings } from "@/lib/pricing";
+import { CreateClientDialog } from "../clients/create-client-dialog";
 import type { DashboardLanguage } from "../language";
+import { completePosSale } from "./actions";
+import {
+  initialCompleteSaleState,
+  type CompleteSaleState,
+} from "./sale-state";
 
 type PosArticle = {
   id: string;
@@ -65,6 +80,8 @@ const copy = {
     emptyCart: "Add an article to start an invoice.",
     customer: "Customer",
     walkIn: "Walk-in customer",
+    searchCustomer: "Search by name or phone...",
+    noCustomer: "No customer found.",
     payment: "Payment method",
     cash: "Cash",
     card: "Card",
@@ -75,6 +92,15 @@ const copy = {
     discountAmount: "Discount",
     total: "Total",
     print: "Print invoice",
+    completeSale: "Complete sale and print",
+    completingSale: "Recording sale...",
+    saleSaved: "Sale recorded. The stock has been updated.",
+    errors: {
+      invalid: "Your sale could not be validated.",
+      insufficient: "One or more articles no longer have enough stock.",
+      unauthorized: "Your session has expired. Sign in again.",
+      unknown: "The sale could not be recorded. Please try again.",
+    },
     reset: "New sale",
     date: "Date",
     quantity: "Qty",
@@ -93,6 +119,8 @@ const copy = {
     emptyCart: "Ajoutez un article pour commencer la facture.",
     customer: "Client",
     walkIn: "Client de passage",
+    searchCustomer: "Rechercher par nom ou téléphone…",
+    noCustomer: "Aucun client trouvé.",
     payment: "Mode de paiement",
     cash: "Espèces",
     card: "Carte",
@@ -103,6 +131,15 @@ const copy = {
     discountAmount: "Remise",
     total: "Total",
     print: "Imprimer la facture",
+    completeSale: "Finaliser et imprimer",
+    completingSale: "Enregistrement de la vente…",
+    saleSaved: "Vente enregistrée. Le stock a été mis à jour.",
+    errors: {
+      invalid: "La vente ne peut pas être validée.",
+      insufficient: "Un ou plusieurs articles ne sont plus suffisamment en stock.",
+      unauthorized: "Votre session a expiré. Reconnectez-vous.",
+      unknown: "La vente n’a pas pu être enregistrée. Réessayez.",
+    },
     reset: "Nouvelle vente",
     date: "Date",
     quantity: "Qté",
@@ -136,9 +173,22 @@ export function PosWorkspace({
   const locale = language === "fr" ? "fr-CD" : "en-US";
   const [query, setQuery] = useState("");
   const [cart, setCart] = useState<CartLine[]>([]);
+  const [clientOptions, setClientOptions] = useState(clients);
   const [clientId, setClientId] = useState("walk-in");
+  const [clientSearch, setClientSearch] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   const [discount, setDiscount] = useState(0);
+  const [saleState, saleAction, salePending] = useActionState(
+    async (previousState: CompleteSaleState, formData: FormData) => {
+      const nextState = await completePosSale(previousState, formData);
+      if (nextState.status === "success") {
+        window.print();
+        resetSale();
+      }
+      return nextState;
+    },
+    initialCompleteSaleState,
+  );
 
   const filteredArticles = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase(locale);
@@ -150,7 +200,17 @@ export function PosWorkspace({
     );
   }, [articles, locale, query]);
 
-  const selectedClient = clients.find((client) => client.id === clientId);
+  const selectedClient = clientOptions.find((client) => client.id === clientId);
+  const filteredClients = useMemo(() => {
+    const normalized = clientSearch.trim().toLocaleLowerCase(locale);
+    if (!normalized) return clientOptions;
+
+    return clientOptions.filter((client) =>
+      [client.name, client.phone].some((value) =>
+        value.toLocaleLowerCase(locale).includes(normalized),
+      ),
+    );
+  }, [clientOptions, clientSearch, locale]);
   const subtotal = cart.reduce(
     (sum, line) => sum + line.salePrice * line.quantity,
     0,
@@ -186,6 +246,7 @@ export function PosWorkspace({
   function resetSale() {
     setCart([]);
     setClientId("walk-in");
+    setClientSearch("");
     setPaymentMethod("cash");
     setDiscount(0);
     setQuery("");
@@ -275,15 +336,67 @@ export function PosWorkspace({
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1 print:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label>{text.customer}</Label>
-                  <Select value={clientId} onValueChange={(value) => setClientId(value ?? "walk-in")}>
-                    <SelectTrigger className="w-full print:hidden"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="walk-in">{text.walkIn}</SelectItem>
-                      {clients.map((client) => (
-                        <SelectItem key={client.id} value={client.id}>{client.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <DropdownMenu onOpenChange={(open) => !open && setClientSearch("")}>
+                    <DropdownMenuTrigger
+                      render={
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="w-full justify-between font-normal print:hidden"
+                        />
+                      }
+                    >
+                      <span className="truncate">{selectedClient?.name ?? text.walkIn}</span>
+                      <ChevronDown className="text-muted-foreground" />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent className="w-(--anchor-width) min-w-64 p-1.5">
+                      <div className="relative mb-1" onKeyDown={(event) => event.stopPropagation()}>
+                        <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
+                        <Input
+                          value={clientSearch}
+                          onChange={(event) => setClientSearch(event.target.value)}
+                          placeholder={text.searchCustomer}
+                          aria-label={text.searchCustomer}
+                          className="h-8 pl-8"
+                          autoFocus
+                        />
+                      </div>
+                      <DropdownMenuSeparator />
+                      {!clientSearch.trim() && (
+                        <DropdownMenuItem onClick={() => setClientId("walk-in")}>
+                          <Check className={clientId === "walk-in" ? "opacity-100" : "opacity-0"} />
+                          <span>{text.walkIn}</span>
+                        </DropdownMenuItem>
+                      )}
+                      {filteredClients.length === 0 ? (
+                        <p className="px-2 py-3 text-center text-xs text-muted-foreground">
+                          {text.noCustomer}
+                        </p>
+                      ) : (
+                        filteredClients.map((client) => (
+                          <DropdownMenuItem key={client.id} onClick={() => setClientId(client.id)}>
+                            <Check className={clientId === client.id ? "opacity-100" : "opacity-0"} />
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate">{client.name}</span>
+                              <span className="block truncate text-xs text-muted-foreground">{client.phone}</span>
+                            </span>
+                          </DropdownMenuItem>
+                        ))
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                  <div className="print:hidden">
+                    <CreateClientDialog
+                      language={language}
+                      inline
+                      onCreated={(client) => {
+                        setClientOptions((current) =>
+                          [...current, client].sort((a, b) => a.name.localeCompare(b.name, locale)),
+                        );
+                        setClientId(client.id);
+                      }}
+                    />
+                  </div>
                   <p className="hidden text-sm print:block">
                     {selectedClient ? `${selectedClient.name} · ${selectedClient.phone}` : text.walkIn}
                   </p>
@@ -388,15 +501,22 @@ export function PosWorkspace({
               </dl>
 
               <div className="grid gap-2 print:hidden sm:grid-cols-2 xl:grid-cols-1">
-                <Button type="button" size="lg" disabled={cart.length === 0} onClick={() => window.print()}>
-                  <Printer />
-                  {text.print}
-                </Button>
+                <form action={saleAction}>
+                  <input type="hidden" name="invoiceNumber" value={invoiceNumber} />
+                  <input type="hidden" name="lines" value={JSON.stringify(cart.map(({ id, quantity }) => ({ id, quantity })))} />
+                  <Button type="submit" size="lg" className="w-full" disabled={cart.length === 0 || salePending}>
+                    {salePending ? <ReceiptText className="animate-pulse" /> : <Printer />}
+                    {salePending ? text.completingSale : text.completeSale}
+                  </Button>
+                </form>
                 <Button type="button" size="lg" variant="outline" onClick={resetSale}>
                   <RotateCcw />
                   {text.reset}
                 </Button>
               </div>
+              {saleState.status === "error" && saleState.error && (
+                <p className="text-sm text-destructive" role="alert">{text.errors[saleState.error]}</p>
+              )}
             </CardContent>
           </Card>
         </div>

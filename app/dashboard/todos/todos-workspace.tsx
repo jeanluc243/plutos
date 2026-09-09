@@ -1,7 +1,16 @@
 "use client";
 
+import Image from "next/image";
 import { useMemo, useState, useTransition } from "react";
-import { CalendarDays, CheckCircle2, Circle, LoaderCircle, Search } from "lucide-react";
+import {
+  CalendarDays,
+  CheckCircle2,
+  ChevronRight,
+  Circle,
+  LoaderCircle,
+  Search,
+  Tag,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import { Badge } from "@/components/ui/badge";
@@ -9,11 +18,20 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import type { DashboardLanguage } from "../language";
 import { setTodoCompleted } from "./actions";
 import { todosCopy } from "./copy";
 import { CreateTodoDialog } from "./create-todo-dialog";
+import { TodoDetailSheet } from "./todo-detail-sheet";
+import { TODO_TAGS, type TodoTag } from "./todo-tags";
 
 export type TodoRecord = {
   id: string;
@@ -21,6 +39,8 @@ export type TodoRecord = {
   title: string;
   description: string | null;
   priority: "low" | "medium" | "high";
+  tag: TodoTag;
+  image: string | null;
   dueAt: string | null;
   completed: boolean;
   createdAt: string;
@@ -32,16 +52,20 @@ export function TodosWorkspace({
   todos,
   language,
   currentUserId,
+  canManageAll,
 }: {
   todos: TodoRecord[];
   language: DashboardLanguage;
   currentUserId: string;
+  canManageAll: boolean;
 }) {
   const copy = todosCopy[language];
   const locale = language === "fr" ? "fr-FR" : "en-US";
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<TodoFilter>("all");
+  const [tagFilter, setTagFilter] = useState<TodoTag | "all">("all");
+  const [selectedTodo, setSelectedTodo] = useState<TodoRecord | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -53,13 +77,15 @@ export function TodosWorkspace({
       const matchesFilter =
         filter === "all" ||
         (filter === "completed" ? todo.completed : !todo.completed);
+      const matchesTag = tagFilter === "all" || todo.tag === tagFilter;
       const matchesQuery =
         !normalized ||
         todo.title.toLocaleLowerCase(locale).includes(normalized) ||
-        todo.description?.toLocaleLowerCase(locale).includes(normalized);
-      return matchesFilter && matchesQuery;
+        todo.description?.toLocaleLowerCase(locale).includes(normalized) ||
+        copy.tags[todo.tag].toLocaleLowerCase(locale).includes(normalized);
+      return matchesFilter && matchesTag && matchesQuery;
     });
-  }, [filter, locale, query, todos]);
+  }, [copy.tags, filter, locale, query, tagFilter, todos]);
 
   function toggleTodo(todo: TodoRecord, completed: boolean) {
     setUpdatingId(todo.id);
@@ -116,6 +142,28 @@ export function TodosWorkspace({
                   {copy[value]}
                 </Button>
               ))}
+              <Select
+                value={tagFilter}
+                items={{ all: copy.allTags, ...copy.tags }}
+                onValueChange={(value) => {
+                  if (value === "all" || (value && TODO_TAGS.includes(value as TodoTag))) {
+                    setTagFilter(value as TodoTag | "all");
+                  }
+                }}
+              >
+                <SelectTrigger className="min-w-36" aria-label={copy.filterByTag}>
+                  <Tag className="size-4 text-muted-foreground" />
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{copy.allTags}</SelectItem>
+                  {TODO_TAGS.map((tag) => (
+                    <SelectItem key={tag} value={tag}>
+                      {copy.tags[tag]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <div className="relative min-w-[210px] flex-1 sm:max-w-xs">
                 <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
@@ -141,10 +189,13 @@ export function TodosWorkspace({
                 {visibleTodos.map((todo) => {
                   const dueAt = todo.dueAt ? new Date(todo.dueAt) : null;
                   const loading = isPending && updatingId === todo.id;
-                  const canUpdate = todo.ownerId === currentUserId;
+                  const canUpdate = canManageAll || todo.ownerId === currentUserId;
 
                   return (
-                    <div key={todo.id} className="flex items-start gap-3 px-4 py-4 sm:px-5">
+                    <div
+                      key={todo.id}
+                      className="flex items-start gap-3 px-4 py-3 transition-colors hover:bg-muted/30 sm:px-5"
+                    >
                       <div className="pt-0.5">
                         {loading ? (
                           <LoaderCircle className="size-4 animate-spin text-muted-foreground" />
@@ -157,37 +208,61 @@ export function TodosWorkspace({
                           />
                         )}
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p
-                            className={cn(
-                              "font-medium",
-                              todo.completed && "text-muted-foreground line-through",
-                            )}
-                          >
-                            {todo.title}
-                          </p>
-                          <Badge
-                            variant={todo.priority === "high" ? "destructive" : "secondary"}
-                          >
-                            {copy[todo.priority]}
-                          </Badge>
-                        </div>
-                        {todo.description && (
-                          <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
-                            {todo.description}
-                          </p>
+                      <button
+                        type="button"
+                        className="flex min-w-0 flex-1 items-start gap-3 rounded-lg text-left outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+                        aria-label={`${copy.openTask}: ${todo.title}`}
+                        onClick={() => setSelectedTodo(todo)}
+                      >
+                        {todo.image && (
+                          <span className="relative size-14 shrink-0 overflow-hidden rounded-lg border bg-muted">
+                            <Image
+                              src={todo.image}
+                              alt=""
+                              fill
+                              unoptimized
+                              sizes="56px"
+                              className="object-cover"
+                            />
+                          </span>
                         )}
-                        <p className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
-                          <CalendarDays className="size-3.5" />
-                          {dueAt
-                            ? dueAt.toLocaleString(locale, {
-                                dateStyle: "medium",
-                                timeStyle: "short",
-                              })
-                            : copy.noDueDate}
-                        </p>
-                      </div>
+                        <span className="min-w-0 flex-1">
+                          <span className="flex flex-wrap items-center gap-2">
+                            <span
+                              className={cn(
+                                "font-medium",
+                                todo.completed && "text-muted-foreground line-through",
+                              )}
+                            >
+                              {todo.title}
+                            </span>
+                            <Badge variant="outline">
+                              <Tag />
+                              {copy.tags[todo.tag]}
+                            </Badge>
+                            <Badge
+                              variant={todo.priority === "high" ? "destructive" : "secondary"}
+                            >
+                              {copy[todo.priority]}
+                            </Badge>
+                          </span>
+                          {todo.description && (
+                            <span className="mt-1 block line-clamp-2 text-sm text-muted-foreground">
+                              {todo.description}
+                            </span>
+                          )}
+                          <span className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <CalendarDays className="size-3.5" />
+                            {dueAt
+                              ? dueAt.toLocaleString(locale, {
+                                  dateStyle: "medium",
+                                  timeStyle: "short",
+                                })
+                              : copy.noDueDate}
+                          </span>
+                        </span>
+                        <ChevronRight className="mt-1 size-4 shrink-0 text-muted-foreground" />
+                      </button>
                     </div>
                   );
                 })}
@@ -195,6 +270,14 @@ export function TodosWorkspace({
             )}
           </CardContent>
         </Card>
+
+        <TodoDetailSheet
+          todo={selectedTodo}
+          language={language}
+          currentUserId={currentUserId}
+          canManageAll={canManageAll}
+          onClose={() => setSelectedTodo(null)}
+        />
       </div>
     </div>
   );

@@ -5,7 +5,7 @@ import { and, eq, gt, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { getDatabase } from "@/lib/db/client";
-import { articleCategories, articles } from "@/lib/db/schema";
+import { articleCategories, articles, stockMovements } from "@/lib/db/schema";
 import {
   calculateSuggestedSalePrice,
   MAX_GAIN_MULTIPLIER,
@@ -109,25 +109,40 @@ export async function createArticleRecord(
   }
 
   try {
-    await getDatabase().insert(articles).values({
-      ownerId: user.id,
-      sku: requestedSku || `ART-${randomUUID().slice(0, 8).toUpperCase()}`,
-      name,
-      category,
-      supplier,
-      purchasePrice: purchasePrice.toFixed(2),
-      salePrice: salePrice.toFixed(2),
-      transportCost: transportCost.toFixed(2),
-      paymentCommission: paymentCommission.toFixed(2),
-      chinaTransportCost: chinaTransportCost.toFixed(2),
-      agencyTransportCost: agencyTransportCost.toFixed(2),
-      gainMultiplier: gainMultiplier.toFixed(2),
-      city,
-      countryCode: country.code,
-      countryName: country.en,
-      information: information || null,
-      images,
-      stock,
+    await getDatabase().transaction(async (transaction) => {
+      const [created] = await transaction.insert(articles).values({
+        ownerId: user.id,
+        sku: requestedSku || `ART-${randomUUID().slice(0, 8).toUpperCase()}`,
+        name,
+        category,
+        supplier,
+        purchasePrice: purchasePrice.toFixed(2),
+        salePrice: salePrice.toFixed(2),
+        transportCost: transportCost.toFixed(2),
+        paymentCommission: paymentCommission.toFixed(2),
+        chinaTransportCost: chinaTransportCost.toFixed(2),
+        agencyTransportCost: agencyTransportCost.toFixed(2),
+        gainMultiplier: gainMultiplier.toFixed(2),
+        city,
+        countryCode: country.code,
+        countryName: country.en,
+        information: information || null,
+        images,
+        stock,
+      }).returning({ id: articles.id });
+
+      if (stock > 0) {
+        await transaction.insert(stockMovements).values({
+          ownerId: user.id,
+          articleId: created.id,
+          movementType: "entry",
+          quantityChange: stock,
+          stockBefore: 0,
+          stockAfter: stock,
+          reason: "Stock initial",
+          createdByEmail: user.email ?? null,
+        });
+      }
     });
   } catch (error) {
     if (getPostgresErrorCode(error) === "23505") {
@@ -138,6 +153,7 @@ export async function createArticleRecord(
   }
 
   revalidatePath("/dashboard/articles");
+  revalidatePath("/dashboard/stock");
   return { status: "success" };
 }
 
@@ -187,26 +203,50 @@ export async function updateArticleRecord(
     images.length > 8 || images.some((image) => !isValidStoredImage(image))
   ) return { status: "error", error: "invalid" };
 
-  await getDatabase().update(articles).set({
-    name,
-    category,
-    supplier,
-    city,
-    purchasePrice: purchasePrice.toFixed(2),
-    salePrice: salePrice.toFixed(2),
-    transportCost: transportCost.toFixed(2),
-    paymentCommission: paymentCommission.toFixed(2),
-    chinaTransportCost: chinaTransportCost.toFixed(2),
-    agencyTransportCost: agencyTransportCost.toFixed(2),
-    gainMultiplier: gainMultiplier.toFixed(2),
-    stock,
-    information: information || null,
-    images,
-    updatedAt: new Date(),
-  }).where(and(eq(articles.id, articleId), eq(articles.ownerId, user.id)));
+  await getDatabase().transaction(async (transaction) => {
+    const [current] = await transaction
+      .select({ stock: articles.stock })
+      .from(articles)
+      .where(and(eq(articles.id, articleId), eq(articles.ownerId, user.id)))
+      .limit(1);
+    if (!current) return;
+
+    await transaction.update(articles).set({
+      name,
+      category,
+      supplier,
+      city,
+      purchasePrice: purchasePrice.toFixed(2),
+      salePrice: salePrice.toFixed(2),
+      transportCost: transportCost.toFixed(2),
+      paymentCommission: paymentCommission.toFixed(2),
+      chinaTransportCost: chinaTransportCost.toFixed(2),
+      agencyTransportCost: agencyTransportCost.toFixed(2),
+      gainMultiplier: gainMultiplier.toFixed(2),
+      stock,
+      information: information || null,
+      images,
+      updatedAt: new Date(),
+    }).where(and(eq(articles.id, articleId), eq(articles.ownerId, user.id)));
+
+    const change = stock - current.stock;
+    if (change !== 0) {
+      await transaction.insert(stockMovements).values({
+        ownerId: user.id,
+        articleId,
+        movementType: change > 0 ? "entry" : "exit",
+        quantityChange: change,
+        stockBefore: current.stock,
+        stockAfter: stock,
+        reason: "Modification depuis la fiche article",
+        createdByEmail: user.email ?? null,
+      });
+    }
+  });
 
   revalidatePath("/dashboard/articles");
   revalidatePath(`/dashboard/articles/${articleId}`);
+  revalidatePath("/dashboard/stock");
   return { status: "success" };
 }
 
@@ -228,23 +268,42 @@ export async function buyArticle(articleId: string) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { status: "unauthorized" as const };
 
-  const updated = await getDatabase()
-    .update(articles)
-    .set({
-      stock: sql`${articles.stock} - 1`,
-      updatedAt: new Date(),
-    })
-    .where(
-      and(
-        eq(articles.id, articleId),
-        eq(articles.ownerId, user.id),
-        gt(articles.stock, 0),
-      ),
-    )
-    .returning({ id: articles.id });
+  const updated = await getDatabase().transaction(async (transaction) => {
+    const records = await transaction
+      .update(articles)
+      .set({
+        stock: sql`${articles.stock} - 1`,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(articles.id, articleId),
+          eq(articles.ownerId, user.id),
+          gt(articles.stock, 0),
+        ),
+      )
+      .returning({ ownerId: articles.ownerId, stockAfter: articles.stock });
+
+    const [record] = records;
+    if (!record) return records;
+
+    await transaction.insert(stockMovements).values({
+      ownerId: record.ownerId,
+      articleId,
+      movementType: "sale",
+      quantityChange: -1,
+      stockBefore: record.stockAfter + 1,
+      stockAfter: record.stockAfter,
+      reason: "Achat depuis le catalogue",
+      createdByEmail: user.email ?? null,
+    });
+    return records;
+  });
 
   if (updated.length === 0) return { status: "unavailable" as const };
 
   revalidatePath("/dashboard/articles");
+  revalidatePath("/dashboard/stock");
+  revalidatePath("/dashboard/invoices");
   return { status: "success" as const };
 }

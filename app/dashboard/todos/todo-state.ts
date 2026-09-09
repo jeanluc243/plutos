@@ -1,6 +1,6 @@
 export type CreateTodoState = {
   status: "idle" | "error" | "success";
-  error?: "invalid" | "unauthorized" | "unknown";
+  error?: "invalid" | "invalidPhoto" | "unauthorized" | "forbidden" | "unknown";
 };
 
 export const initialCreateTodoState: CreateTodoState = { status: "idle" };

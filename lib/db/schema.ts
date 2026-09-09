@@ -89,6 +89,8 @@ export const todos = pgTable(
     title: varchar("title", { length: 180 }).notNull(),
     description: text("description"),
     priority: varchar("priority", { length: 16 }).default("medium").notNull(),
+    tag: varchar("tag", { length: 32 }).default("general").notNull(),
+    image: text("image"),
     dueAt: timestamp("due_at", { withTimezone: true }),
     completed: boolean("completed").default(false).notNull(),
     completedAt: timestamp("completed_at", { withTimezone: true }),
@@ -107,6 +109,10 @@ export const todos = pgTable(
     check(
       "todos_priority_valid",
       sql`${table.priority} IN ('low', 'medium', 'high')`,
+    ),
+    check(
+      "todos_tag_valid",
+      sql`${table.tag} IN ('general', 'client', 'supplier', 'finance', 'project', 'administrative')`,
     ),
     pgPolicy("todos_owner_access", {
       for: "all",
@@ -141,6 +147,11 @@ export const orders = pgTable(
     cargo: varchar("cargo", { length: 180 }).notNull(),
     carrier: varchar("carrier", { length: 120 }).notNull(),
     transportMode: varchar("transport_mode", { length: 24 }).notNull(),
+    quantity: integer("quantity").default(1).notNull(),
+    purchaseUnitPrice: numeric("purchase_unit_price", { precision: 12, scale: 2 })
+      .default("0")
+      .notNull(),
+    createdByEmail: varchar("created_by_email", { length: 320 }),
     totalWeightKg: integer("total_weight_kg"),
     cbm: numeric("cbm", { precision: 10, scale: 2 }),
     status: varchar("status", { length: 24 }).default("in_transit").notNull(),
@@ -170,6 +181,7 @@ export const orders = pgTable(
       sql`length(${table.destinationCountryCode}) = 2`,
     ),
     check("orders_weight_positive", sql`${table.totalWeightKg} > 0`),
+    check("orders_quantity_positive", sql`${table.quantity} > 0`),
     check("orders_cbm_positive", sql`${table.cbm} > 0`),
     check(
       "orders_progress_range",
@@ -258,6 +270,50 @@ export const articles = pgTable(
 
 export type Article = typeof articles.$inferSelect;
 export type NewArticle = typeof articles.$inferInsert;
+
+export const stockMovements = pgTable(
+  "stock_movements",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    ownerId: uuid("owner_id").notNull(),
+    articleId: uuid("article_id").notNull(),
+    movementType: varchar("movement_type", { length: 16 }).notNull(),
+    quantityChange: integer("quantity_change").notNull(),
+    stockBefore: integer("stock_before").notNull(),
+    stockAfter: integer("stock_after").notNull(),
+    reason: varchar("reason", { length: 240 }),
+    createdByEmail: varchar("created_by_email", { length: 320 }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("stock_movements_owner_id_idx").on(table.ownerId),
+    index("stock_movements_article_id_idx").on(table.articleId),
+    index("stock_movements_created_at_idx").on(table.createdAt),
+    check(
+      "stock_movements_type_valid",
+      sql`${table.movementType} IN ('entry', 'exit', 'sale')`,
+    ),
+    check("stock_movements_quantity_non_zero", sql`${table.quantityChange} <> 0`),
+    check("stock_movements_before_positive", sql`${table.stockBefore} >= 0`),
+    check("stock_movements_after_positive", sql`${table.stockAfter} >= 0`),
+    pgPolicy("stock_movements_owner_access", {
+      for: "all",
+      to: authenticatedRole,
+      using: sql`auth.uid() = ${table.ownerId}`,
+      withCheck: sql`auth.uid() = ${table.ownerId}`,
+    }),
+    pgPolicy("stock_movements_admin_read", {
+      for: "select",
+      to: authenticatedRole,
+      using: sql`public.is_admin()`,
+    }),
+  ],
+).enableRLS();
+
+export type StockMovement = typeof stockMovements.$inferSelect;
+export type NewStockMovement = typeof stockMovements.$inferInsert;
 
 export const carriers = pgTable(
   "carriers",

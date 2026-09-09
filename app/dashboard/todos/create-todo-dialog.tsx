@@ -27,11 +27,18 @@ import { Textarea } from "@/components/ui/textarea";
 import type { DashboardLanguage } from "../language";
 import { createTodoRecord } from "./actions";
 import { todosCopy } from "./copy";
+import {
+  TodoPhotoPicker,
+  type PendingTodoPhoto,
+} from "./todo-photo-picker";
 import { initialCreateTodoState, type CreateTodoState } from "./todo-state";
+import { isTodoTag, TODO_TAGS, type TodoTag } from "./todo-tags";
 
 export function CreateTodoDialog({ language }: { language: DashboardLanguage }) {
   const copy = todosCopy[language];
   const [open, setOpen] = useState(false);
+  const [tag, setTag] = useState<TodoTag | null>(null);
+  const [photo, setPhoto] = useState<PendingTodoPhoto | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const [state, formAction, pending] = useActionState(async (
     previousState: CreateTodoState,
@@ -40,6 +47,8 @@ export function CreateTodoDialog({ language }: { language: DashboardLanguage }) 
     const nextState = await createTodoRecord(previousState, formData);
     if (nextState.status === "success") {
       formRef.current?.reset();
+      setTag(null);
+      setPhoto(null);
       setOpen(false);
     }
     return nextState;
@@ -53,7 +62,7 @@ export function CreateTodoDialog({ language }: { language: DashboardLanguage }) 
         <Plus data-icon="inline-start" />
         {copy.newTask}
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
         <form ref={formRef} action={formAction} className="contents">
           <DialogHeader>
             <DialogTitle>{copy.newTask}</DialogTitle>
@@ -85,8 +94,37 @@ export function CreateTodoDialog({ language }: { language: DashboardLanguage }) 
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="grid gap-2">
+                <Label htmlFor="todo-tag">{copy.tag}</Label>
+                <Select
+                  name="tag"
+                  value={tag}
+                  items={copy.tags}
+                  onValueChange={(value) => {
+                    if (value && isTodoTag(value)) setTag(value);
+                    else setTag(null);
+                  }}
+                  required
+                >
+                  <SelectTrigger id="todo-tag" className="w-full">
+                    <SelectValue placeholder={copy.selectTag} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TODO_TAGS.map((value) => (
+                      <SelectItem key={value} value={value}>
+                        {copy.tags[value]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="grid gap-2">
                 <Label htmlFor="todo-priority">{copy.priority}</Label>
-                <Select name="priority" defaultValue="medium">
+                <Select
+                  name="priority"
+                  defaultValue="medium"
+                  items={{ low: copy.low, medium: copy.medium, high: copy.high }}
+                >
                   <SelectTrigger id="todo-priority" className="w-full">
                     <SelectValue />
                   </SelectTrigger>
@@ -97,11 +135,23 @@ export function CreateTodoDialog({ language }: { language: DashboardLanguage }) 
                   </SelectContent>
                 </Select>
               </div>
+            </div>
 
-              <div className="grid gap-2">
-                <Label htmlFor="todo-due-at">{copy.dueDate}</Label>
-                <Input id="todo-due-at" name="dueAt" type="datetime-local" />
+            <div className="grid gap-2">
+              <Label htmlFor="todo-due-at">{copy.dueDate}</Label>
+              <Input id="todo-due-at" name="dueAt" type="datetime-local" />
+            </div>
+
+            <div className="grid gap-2">
+              <div className="flex items-center justify-between gap-3">
+                <Label>{copy.photo}</Label>
+                <span className="text-xs text-muted-foreground">{copy.photoOptional}</span>
               </div>
+              <TodoPhotoPicker
+                copy={copy.photoPicker}
+                photo={photo}
+                onPhotoChange={setPhoto}
+              />
             </div>
 
             {errorMessage && (

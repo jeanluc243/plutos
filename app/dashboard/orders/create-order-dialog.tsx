@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useActionState, useRef, useState } from "react";
-import { CalendarClock, LoaderCircle, PackagePlus, Plus } from "lucide-react";
+import { CalendarClock, LoaderCircle, PackagePlus, Plus, Truck } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { CountryFlag } from "@/components/country-flag";
@@ -39,6 +39,8 @@ export type OrderArticleOption = {
   name: string;
   sku: string;
 };
+
+const CREATE_CARRIER_VALUE = "__create_carrier__";
 
 function CityField({
   id,
@@ -109,6 +111,12 @@ export function CreateOrderDialog({
   const [destinationCountryCode, setDestinationCountryCode] = useState("CD");
   const [originCity, setOriginCity] = useState("");
   const [destinationCity, setDestinationCity] = useState("");
+  const [articleId, setArticleId] = useState(articles[0]?.id ?? "");
+  const [carrier, setCarrier] = useState(carriers[0]?.name ?? "");
+  const [creatingCarrier, setCreatingCarrier] = useState(false);
+  const [newCarrierName, setNewCarrierName] = useState("");
+  const [newCarrierInformation, setNewCarrierInformation] = useState("");
+  const [transportMode, setTransportMode] = useState("road");
   const formRef = useRef<HTMLFormElement>(null);
   const [state, formAction, pending] = useActionState(
     async (previousState: CreateOrderState, formData: FormData) => {
@@ -119,6 +127,12 @@ export function CreateOrderDialog({
         setDestinationCountryCode("CD");
         setOriginCity("");
         setDestinationCity("");
+        setArticleId(articles[0]?.id ?? "");
+        setCarrier(carriers[0]?.name ?? "");
+        setCreatingCarrier(false);
+        setNewCarrierName("");
+        setNewCarrierInformation("");
+        setTransportMode("road");
         setOpen(false);
       }
       return nextState;
@@ -127,18 +141,8 @@ export function CreateOrderDialog({
   );
 
   const errorMessage = state.error ? copy.errors[state.error] : null;
-
-  if (articles.length === 0) {
-    return (
-      <Button
-        render={<Link href="/dashboard/articles" title={copy.createArticleFirstHint} />}
-        nativeButton={false}
-      >
-        <PackagePlus data-icon="inline-start" />
-        {copy.createArticleFirst}
-      </Button>
-    );
-  }
+  const selectedArticle = articles.find((article) => article.id === articleId);
+  const selectedCarrier = carriers.find((item) => item.name === carrier);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -147,7 +151,33 @@ export function CreateOrderDialog({
         {copy.newOrder}
       </DialogTrigger>
       <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-2xl">
-        <form ref={formRef} action={formAction} className="contents">
+        {articles.length === 0 ? (
+          <>
+            <DialogHeader>
+              <DialogTitle>{copy.newOrder}</DialogTitle>
+              <DialogDescription>{copy.createArticleFirstHint}</DialogDescription>
+            </DialogHeader>
+            <div className="flex min-h-40 flex-col items-center justify-center gap-3 rounded-lg border border-dashed bg-muted/20 p-6 text-center">
+              <PackagePlus className="size-9 text-muted-foreground" />
+              <p className="max-w-sm text-sm text-muted-foreground">
+                {copy.createArticleFirstHint}
+              </p>
+            </div>
+            <DialogFooter>
+              <DialogClose render={<Button type="button" variant="outline" />}>
+                {copy.cancel}
+              </DialogClose>
+              <Button
+                render={<Link href="/dashboard/articles" />}
+                nativeButton={false}
+              >
+                <PackagePlus data-icon="inline-start" />
+                {copy.createArticleFirst}
+              </Button>
+            </DialogFooter>
+          </>
+        ) : (
+          <form ref={formRef} action={formAction} className="contents">
           <DialogHeader>
             <DialogTitle>{copy.newOrder}</DialogTitle>
             <DialogDescription>{copy.createDescription}</DialogDescription>
@@ -253,11 +283,21 @@ export function CreateOrderDialog({
                 <Label htmlFor="order-article">{copy.article}</Label>
                 <Select
                   name="articleId"
-                  defaultValue={articles[0]?.id}
+                  value={articleId}
+                  onValueChange={(value) => setArticleId(value ?? "")}
                   required
                 >
                   <SelectTrigger id="order-article" className="w-full">
-                    <SelectValue placeholder={copy.selectArticle} />
+                    {selectedArticle ? (
+                      <span className="flex min-w-0 flex-col text-left">
+                        <span className="truncate">{selectedArticle.name}</span>
+                        <span className="truncate font-mono text-xs text-muted-foreground">
+                          {selectedArticle.sku}
+                        </span>
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">{copy.selectArticle}</span>
+                    )}
                   </SelectTrigger>
                   <SelectContent align="start">
                     {articles.map((article) => (
@@ -277,12 +317,29 @@ export function CreateOrderDialog({
                 <Label htmlFor="order-carrier">{copy.carrier}</Label>
                 <Select
                   name="carrier"
-                  defaultValue={carriers[0]?.name}
-                  disabled={carriers.length === 0}
+                  value={creatingCarrier ? CREATE_CARRIER_VALUE : carrier}
+                  onValueChange={(value) => {
+                    if (value === CREATE_CARRIER_VALUE) {
+                      setCreatingCarrier(true);
+                      setCarrier("");
+                    } else {
+                      setCreatingCarrier(false);
+                      setCarrier(value ?? "");
+                    }
+                  }}
                   required
                 >
                   <SelectTrigger id="order-carrier" className="w-full">
-                    <SelectValue placeholder={copy.noConfiguredCarriers} />
+                    {creatingCarrier ? (
+                      <span className="flex items-center gap-2 text-muted-foreground">
+                        <Truck className="size-4" />
+                        {copy.createCarrier}
+                      </span>
+                    ) : selectedCarrier ? (
+                      <span className="min-w-0 truncate">{selectedCarrier.name}</span>
+                    ) : (
+                      <span className="text-muted-foreground">{copy.selectCarrier}</span>
+                    )}
                   </SelectTrigger>
                   <SelectContent align="start">
                     {carriers.map((carrier) => (
@@ -297,20 +354,55 @@ export function CreateOrderDialog({
                         </span>
                       </SelectItem>
                     ))}
+                    <SelectItem value={CREATE_CARRIER_VALUE}>
+                      <Plus className="size-4" />
+                      {copy.createCarrier}
+                    </SelectItem>
                   </SelectContent>
                 </Select>
-                {carriers.length === 0 && (
-                  <p className="text-xs text-destructive">{copy.configureCarriersFirst}</p>
+                {creatingCarrier && (
+                  <div className="grid gap-3 rounded-lg border bg-muted/20 p-3">
+                    <div className="grid gap-2">
+                      <Label htmlFor="order-new-carrier-name">{copy.carrierName}</Label>
+                      <Input
+                        id="order-new-carrier-name"
+                        name="newCarrierName"
+                        value={newCarrierName}
+                        onChange={(event) => setNewCarrierName(event.target.value)}
+                        maxLength={120}
+                        placeholder={copy.carrierPlaceholder}
+                        required
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="order-new-carrier-information">
+                        {copy.carrierInformation}
+                      </Label>
+                      <Input
+                        id="order-new-carrier-information"
+                        name="newCarrierInformation"
+                        value={newCarrierInformation}
+                        onChange={(event) => setNewCarrierInformation(event.target.value)}
+                        maxLength={2_000}
+                        placeholder={copy.carrierInformationPlaceholder}
+                      />
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
               <div className="grid gap-2">
                 <Label htmlFor="order-mode">{copy.transportMode}</Label>
-                <Select name="transportMode" defaultValue="road" required>
+                <Select
+                  name="transportMode"
+                  value={transportMode}
+                  onValueChange={(value) => setTransportMode(value ?? "road")}
+                  required
+                >
                   <SelectTrigger id="order-mode" className="w-full">
-                    <SelectValue />
+                    <span>{copy[transportMode as "air" | "sea" | "road" | "rail"]}</span>
                   </SelectTrigger>
                   <SelectContent align="start">
                     <SelectItem value="air">{copy.air}</SelectItem>
@@ -319,6 +411,19 @@ export function CreateOrderDialog({
                     <SelectItem value="rail">{copy.rail}</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="order-quantity">{copy.quantity}</Label>
+                <Input
+                  id="order-quantity"
+                  name="quantity"
+                  type="number"
+                  min={1}
+                  max={1_000_000}
+                  step={1}
+                  defaultValue={1}
+                  required
+                />
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="order-weight">{copy.weight}</Label>
@@ -371,7 +476,8 @@ export function CreateOrderDialog({
               {pending ? copy.creating : copy.createOrder}
             </Button>
           </DialogFooter>
-        </form>
+          </form>
+        )}
       </DialogContent>
     </Dialog>
   );
