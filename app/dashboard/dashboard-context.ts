@@ -15,11 +15,16 @@ export const getDashboardContext = cache(async () => {
   const language: DashboardLanguage = isDashboardLanguage(savedLanguage)
     ? savedLanguage
     : "en";
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data: claimsData } = await supabase.auth.getClaims();
+  const claims = claimsData?.claims;
 
-  if (!user) redirect("/login");
+  const userId = claims?.sub;
+  if (!userId) redirect("/login");
+
+  const user = {
+    id: userId,
+    email: typeof claims.email === "string" ? claims.email : null,
+  };
 
   const applicationUser = await ensureApplicationUser(user);
   const role = applicationUser.role === "admin" ? "admin" : "user";

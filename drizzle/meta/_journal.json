@@ -120,6 +120,41 @@
       "when": 1788463740797,
       "tag": "0016_windy_odin",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1789060000000,
+      "tag": "0017_order_clients",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1788969735594,
+      "tag": "0018_silly_malice",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1789060001000,
+      "tag": "0019_order_financials_repair",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1789060002000,
+      "tag": "0020_neat_jimmy_woo",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1789060003000,
+      "tag": "0021_repair_operational_tables",
+      "breakpoints": true
     }
   ]
 }

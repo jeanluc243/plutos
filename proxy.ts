@@ -28,13 +28,16 @@ export async function proxy(request: NextRequest) {
     },
   );
 
-  const { data: { user } } = await supabase.auth.getUser();
+  // `getClaims` refreshes an expired session and validates the access token
+  // without fetching the full user record from Auth for every RSC request.
+  const { data: claimsData } = await supabase.auth.getClaims();
+  const userId = claimsData?.claims.sub;
   const pathname = request.nextUrl.pathname;
 
-  if (!user && pathname.startsWith("/dashboard")) {
+  if (!userId && pathname.startsWith("/dashboard")) {
     return copyCookies(response, NextResponse.redirect(new URL("/login", request.url)));
   }
-  if (user && pathname === "/login") {
+  if (userId && pathname === "/login") {
     return copyCookies(response, NextResponse.redirect(new URL("/dashboard", request.url)));
   }
 

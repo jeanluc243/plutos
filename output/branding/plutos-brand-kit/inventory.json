@@ -1,0 +1,386 @@
+{
+  "iconSizes": [
+    16,
+    20,
+    24,
+    28,
+    32,
+    36,
+    40,
+    48,
+    64,
+    72,
+    96,
+    120,
+    128,
+    144,
+    152,
+    167,
+    180,
+    192,
+    196,
+    256,
+    384,
+    512,
+    768,
+    1024,
+    2048
+  ],
+  "logoWidths": [
+    128,
+    160,
+    192,
+    256,
+    320,
+    480,
+    640,
+    960,
+    1280,
+    1920,
+    2560,
+    3840,
+    4096
+  ],
+  "palette": {
+    "emerald": "#008767",
+    "apricot": "#FFBA73",
+    "wordmark": "#123A32"
+  },
+  "files": [
+    {
+      "file": "plutos-16.png",
+      "width": 16,
+      "height": 16
+    },
+    {
+      "file": "plutos-20.png",
+      "width": 20,
+      "height": 20
+    },
+    {
+      "file": "plutos-24.png",
+      "width": 24,
+      "height": 24
+    },
+    {
+      "file": "plutos-28.png",
+      "width": 28,
+      "height": 28
+    },
+    {
+      "file": "plutos-32.png",
+      "width": 32,
+      "height": 32
+    },
+    {
+      "file": "plutos-36.png",
+      "width": 36,
+      "height": 36
+    },
+    {
+      "file": "plutos-40.png",
+      "width": 40,
+      "height": 40
+    },
+    {
+      "file": "plutos-48.png",
+      "width": 48,
+      "height": 48
+    },
+    {
+      "file": "plutos-64.png",
+      "width": 64,
+      "height": 64
+    },
+    {
+      "file": "plutos-72.png",
+      "width": 72,
+      "height": 72
+    },
+    {
+      "file": "plutos-96.png",
+      "width": 96,
+      "height": 96
+    },
+    {
+      "file": "plutos-120.png",
+      "width": 120,
+      "height": 120
+    },
+    {
+      "file": "plutos-128.png",
+      "width": 128,
+      "height": 128
+    },
+    {
+      "file": "plutos-144.png",
+      "width": 144,
+      "height": 144
+    },
+    {
+      "file": "plutos-152.png",
+      "width": 152,
+      "height": 152
+    },
+    {
+      "file": "plutos-167.png",
+      "width": 167,
+      "height": 167
+    },
+    {
+      "file": "plutos-180.png",
+      "width": 180,
+      "height": 180
+    },
+    {
+      "file": "plutos-192.png",
+      "width": 192,
+      "height": 192
+    },
+    {
+      "file": "plutos-196.png",
+      "width": 196,
+      "height": 196
+    },
+    {
+      "file": "plutos-256.png",
+      "width": 256,
+      "height": 256
+    },
+    {
+      "file": "plutos-384.png",
+      "width": 384,
+      "height": 384
+    },
+    {
+      "file": "plutos-512.png",
+      "width": 512,
+      "height": 512
+    },
+    {
+      "file": "plutos-768.png",
+      "width": 768,
+      "height": 768
+    },
+    {
+      "file": "plutos-1024.png",
+      "width": 1024,
+      "height": 1024
+    },
+    {
+      "file": "plutos-2048.png",
+      "width": 2048,
+      "height": 2048
+    },
+    {
+      "file": "plutos-logo.png",
+      "width": 1280,
+      "height": 320
+    },
+    {
+      "file": "plutos-logo-128x32.png",
+      "width": 128,
+      "height": 32
+    },
+    {
+      "file": "plutos-logo-160x40.png",
+      "width": 160,
+      "height": 40
+    },
+    {
+      "file": "plutos-logo-192x48.png",
+      "width": 192,
+      "height": 48
+    },
+    {
+      "file": "plutos-logo-256x64.png",
+      "width": 256,
+      "height": 64
+    },
+    {
+      "file": "plutos-logo-320x80.png",
+      "width": 320,
+      "height": 80
+    },
+    {
+      "file": "plutos-logo-480x120.png",
+      "width": 480,
+      "height": 120
+    },
+    {
+      "file": "plutos-logo-640x160.png",
+      "width": 640,
+      "height": 160
+    },
+    {
+      "file": "plutos-logo-960x240.png",
+      "width": 960,
+      "height": 240
+    },
+    {
+      "file": "plutos-logo-1280x320.png",
+      "width": 1280,
+      "height": 320
+    },
+    {
+      "file": "plutos-logo-1920x480.png",
+      "width": 1920,
+      "height": 480
+    },
+    {
+      "file": "plutos-logo-2560x640.png",
+      "width": 2560,
+      "height": 640
+    },
+    {
+      "file": "plutos-logo-3840x960.png",
+      "width": 3840,
+      "height": 960
+    },
+    {
+      "file": "plutos-logo-4096x1024.png",
+      "width": 4096,
+      "height": 1024
+    },
+    {
+      "file": "plutos-logo-light.png",
+      "width": 1280,
+      "height": 320
+    },
+    {
+      "file": "plutos-logo-light-128x32.png",
+      "width": 128,
+      "height": 32
+    },
+    {
+      "file": "plutos-logo-light-160x40.png",
+      "width": 160,
+      "height": 40
+    },
+    {
+      "file": "plutos-logo-light-192x48.png",
+      "width": 192,
+      "height": 48
+    },
+    {
+      "file": "plutos-logo-light-256x64.png",
+      "width": 256,
+      "height": 64
+    },
+    {
+      "file": "plutos-logo-light-320x80.png",
+      "width": 320,
+      "height": 80
+    },
+    {
+      "file": "plutos-logo-light-480x120.png",
+      "width": 480,
+      "height": 120
+    },
+    {
+      "file": "plutos-logo-light-640x160.png",
+      "width": 640,
+      "height": 160
+    },
+    {
+      "file": "plutos-logo-light-960x240.png",
+      "width": 960,
+      "height": 240
+    },
+    {
+      "file": "plutos-logo-light-1280x320.png",
+      "width": 1280,
+      "height": 320
+    },
+    {
+      "file": "plutos-logo-light-1920x480.png",
+      "width": 1920,
+      "height": 480
+    },
+    {
+      "file": "plutos-logo-light-2560x640.png",
+      "width": 2560,
+      "height": 640
+    },
+    {
+      "file": "plutos-logo-light-3840x960.png",
+      "width": 3840,
+      "height": 960
+    },
+    {
+      "file": "plutos-logo-light-4096x1024.png",
+      "width": 4096,
+      "height": 1024
+    },
+    {
+      "file": "plutos-logo-monochrome.png",
+      "width": 1280,
+      "height": 320
+    },
+    {
+      "file": "plutos-logo-monochrome-128x32.png",
+      "width": 128,
+      "height": 32
+    },
+    {
+      "file": "plutos-logo-monochrome-160x40.png",
+      "width": 160,
+      "height": 40
+    },
+    {
+      "file": "plutos-logo-monochrome-192x48.png",
+      "width": 192,
+      "height": 48
+    },
+    {
+      "file": "plutos-logo-monochrome-256x64.png",
+      "width": 256,
+      "height": 64
+    },
+    {
+      "file": "plutos-logo-monochrome-320x80.png",
+      "width": 320,
+      "height": 80
+    },
+    {
+      "file": "plutos-logo-monochrome-480x120.png",
+      "width": 480,
+      "height": 120
+    },
+    {
+      "file": "plutos-logo-monochrome-640x160.png",
+      "width": 640,
+      "height": 160
+    },
+    {
+      "file": "plutos-logo-monochrome-960x240.png",
+      "width": 960,
+      "height": 240
+    },
+    {
+      "file": "plutos-logo-monochrome-1280x320.png",
+      "width": 1280,
+      "height": 320
+    },
+    {
+      "file": "plutos-logo-monochrome-1920x480.png",
+      "width": 1920,
+      "height": 480
+    },
+    {
+      "file": "plutos-logo-monochrome-2560x640.png",
+      "width": 2560,
+      "height": 640
+    },
+    {
+      "file": "plutos-logo-monochrome-3840x960.png",
+      "width": 3840,
+      "height": 960
+    },
+    {
+      "file": "plutos-logo-monochrome-4096x1024.png",
+      "width": 4096,
+      "height": 1024
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { useActionState, useMemo, useRef, useState } from "react";
 import {
   Banknote,
   Check,
@@ -18,6 +18,7 @@ import {
   University,
 } from "lucide-react";
 
+import { PlutosLogo } from "@/components/plutos-logo";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -178,11 +179,12 @@ export function PosWorkspace({
   const [clientSearch, setClientSearch] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   const [discount, setDiscount] = useState(0);
+  const invoiceRef = useRef<HTMLDivElement>(null);
   const [saleState, saleAction, salePending] = useActionState(
     async (previousState: CompleteSaleState, formData: FormData) => {
       const nextState = await completePosSale(previousState, formData);
       if (nextState.status === "success") {
-        window.print();
+        await printInvoice();
         resetSale();
       }
       return nextState;
@@ -250,6 +252,18 @@ export function PosWorkspace({
     setPaymentMethod("cash");
     setDiscount(0);
     setQuery("");
+  }
+
+  async function printInvoice() {
+    const images = Array.from(invoiceRef.current?.querySelectorAll("img") ?? []);
+    await Promise.all([
+      document.fonts.ready,
+      ...images.map((image) => image.decode().catch(() => undefined)),
+    ]);
+    await new Promise<void>((resolve) => {
+      window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve()));
+    });
+    window.print();
   }
 
   return (
@@ -321,8 +335,10 @@ export function PosWorkspace({
             )}
           </section>
 
-          <Card className="xl:sticky xl:top-5 print:static print:overflow-visible print:ring-0">
-            <CardHeader className="border-b print:px-0">
+          <Card ref={invoiceRef} className="xl:sticky xl:top-5 print:static print:overflow-visible print:bg-white print:text-black print:ring-0">
+            <CardHeader className="gap-4 border-b print:px-0">
+              <PlutosLogo className="w-40 print:hidden" eager />
+              <PlutosLogo className="hidden w-48 print:block" appearance="light" eager />
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <CardTitle>{text.currentSale}</CardTitle>

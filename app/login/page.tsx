@@ -1,17 +1,9 @@
 import type { Metadata } from "next";
 import Image from "next/image";
+import { PlutosLogo } from "@/components/plutos-logo";
 import { LoginForm } from "./login-form";
 
 export const metadata: Metadata = { title: "Connexion" };
-
-function PlutosMark() {
-  return (
-    <div className="relative flex size-9 items-center justify-center overflow-hidden rounded-[11px] bg-primary shadow-lg shadow-primary/25">
-      <span className="absolute -left-1.5 top-1 size-7 rounded-full border-[5px] border-white/95" />
-      <span className="absolute bottom-1.5 right-1.5 size-2 rounded-full bg-white" />
-    </div>
-  );
-}
 
 export default function LoginPage() {
   return (
@@ -32,10 +24,7 @@ export default function LoginPage() {
         </section>
 
         <section className="flex min-h-dvh flex-col px-6 py-7 sm:px-12 sm:py-10 lg:min-h-0 lg:px-[clamp(48px,6vw,96px)] lg:py-12">
-          <div className="flex items-center gap-3">
-            <PlutosMark />
-            <span className="text-xl font-bold tracking-[-0.04em] text-foreground">plutos</span>
-          </div>
+          <PlutosLogo className="w-44" eager />
 
           <div className="mt-12 w-full max-w-[430px] self-center sm:mt-14 lg:mt-16">
             <h1 className="text-[34px] font-bold leading-[1.15] tracking-[-0.045em] text-foreground sm:text-[40px]">

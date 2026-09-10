@@ -192,6 +192,100 @@ vercel env add NEXT_PUBLIC_SUPABASE_ANON_KEY preview
 Une URL PostgreSQL en `localhost` ne fonctionne pas depuis un déploiement
 Vercel.
 
+### Commandes à exécuter à chaque nouvelle version
+
+Cette checklist est le chemin court pour publier une nouvelle version. Elle
+suppose que `vercel link` et les variables Vercel ont déjà été configurés, et
+que `.env.production.local` contient la connexion Supabase de migration sur le
+port `5432` avec `sslmode=require`.
+
+#### 1. Contrôler et préparer la version
+
+```bash
+cd /Volumes/SSD-Apps/Projects/Plutos
+
+git status --short
+git diff --check
+
+# Cette commande est sans danger s'il n'y a aucun changement de schéma.
+npm run db:generate
+git diff -- lib/db/schema.ts drizzle/
+
+# Applique les migrations à la base PostgreSQL locale de développement.
+npm run db:migrate
+
+npm run lint
+npx tsc --noEmit
+npm run build
+```
+
+Arrêtez la publication si une commande échoue. Vérifiez également qu'aucun
+fichier `.env*`, dump PostgreSQL, mot de passe ou jeton n'apparaît dans le diff.
+
+#### 2. Enregistrer le code et les migrations
+
+```bash
+git add -A
+git status --short
+git diff --cached --check
+git diff --cached --stat
+git diff --cached
+git commit -m "feat: décrire la nouvelle version"
+```
+
+Le commit doit inclure le code, `package-lock.json`, `lib/db/schema.ts`, les
+fichiers SQL de `drizzle/` et les snapshots générés, mais jamais les secrets ni
+les données exportées de PostgreSQL.
+
+#### 3. Sauvegarder puis migrer Supabase
+
+Pour une migration sensible, créez d'abord un backup depuis Supabase ou avec
+`pg_dump`. Appliquez ensuite les migrations de production :
+
+```bash
+NODE_ENV=production npm run db:migrate
+```
+
+Ne continuez que si la migration réussit. Cette commande utilise
+`DATABASE_TARGET=production` et `SUPABASE_DATABASE_URL` définis dans
+`.env.production.local`.
+
+#### 4. Publier et déployer
+
+Si l'intégration Git Vercel est active, le push suffit :
+
+```bash
+git push origin main
+npx vercel ls
+```
+
+Si le déploiement Git automatique n'est pas actif, poussez le code puis créez
+un candidat de production sans lui attribuer immédiatement le domaine :
+
+```bash
+git push origin main
+npx vercel --prod --skip-domain
+npx vercel inspect URL_DU_CANDIDAT_PRODUCTION
+npx vercel curl /api/health/database --deployment URL_DU_CANDIDAT_PRODUCTION
+npx vercel promote URL_DU_CANDIDAT_PRODUCTION
+```
+
+N'utilisez qu'une seule de ces deux méthodes pour éviter deux déploiements de
+la même version.
+
+#### 5. Vérifier après la mise en ligne
+
+```bash
+npx vercel inspect URL_DU_DEPLOIEMENT
+npx vercel curl /api/health/database --deployment URL_DU_DEPLOIEMENT
+npx vercel logs URL_DU_DEPLOIEMENT
+```
+
+La route de santé doit retourner `database: "ok"`, `provider: "supabase"` et
+`target: "production"`. En cas d'erreur applicative, revenez au déploiement
+précédent avec `npx vercel rollback`. Ce rollback ne restaure pas le schéma de
+la base de données.
+
 ### Workflow complet pour chaque livraison
 
 #### 1. Vérifier les fichiers modifiés

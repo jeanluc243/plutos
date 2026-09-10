@@ -215,16 +215,24 @@ export function ArticlesWorkspace({
           <CardContent className="p-0">
             <Table className={cn("table-fixed", isAdmin ? "min-w-[760px]" : "min-w-[640px]")}>
               <colgroup>
-                <col className="w-11" />
+                <col className="w-12" />
+                <col className="w-[29%]" />
+                <col className="w-[17%]" />
+                {isAdmin && <col className="w-32" />}
+                <col className="w-28" />
+                <col className="w-[60px]" />
+                <col className="w-20" />
               </colgroup>
               <TableHeader>
                 <TableRow className="bg-muted/30 hover:bg-muted/30">
-                  <TableHead className="h-9 w-11 px-0 text-center">
-                    <Checkbox
-                      checked={allSelected}
-                      onCheckedChange={toggleAll}
-                      aria-label="Select all"
-                    />
+                  <TableHead className="h-9 w-12 px-0 text-center">
+                    <div className="flex justify-center">
+                      <Checkbox
+                        checked={allSelected}
+                        onCheckedChange={toggleAll}
+                        aria-label="Select all"
+                      />
+                    </div>
                   </TableHead>
                   <TableHead className="h-9 w-[29%] px-0">
                     <SortButton label={copy.article} value="name" onSort={changeSort} />
@@ -270,12 +278,14 @@ export function ArticlesWorkspace({
                       className="group/article h-[68px] cursor-pointer"
                       onClick={() => setDetailArticle(article)}
                     >
-                      <TableCell className="w-11 px-0 py-2 text-center" onClick={(event) => event.stopPropagation()}>
-                        <Checkbox
-                          checked={selected.has(article.id)}
-                          onCheckedChange={(checked) => toggleOne(article.id, checked)}
-                          aria-label={article.name}
-                        />
+                      <TableCell className="w-12 px-0 py-2 text-center" onClick={(event) => event.stopPropagation()}>
+                        <div className="flex justify-center">
+                          <Checkbox
+                            checked={selected.has(article.id)}
+                            onCheckedChange={(checked) => toggleOne(article.id, checked)}
+                            aria-label={article.name}
+                          />
+                        </div>
                       </TableCell>
                       <TableCell className="px-0 py-2 text-left">
                         <div className="flex min-w-0 items-center gap-1.5">

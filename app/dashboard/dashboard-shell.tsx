@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarGroup } from "@/components/ui/avatar";
+import { PlutosLogo, PlutosMark } from "@/components/plutos-logo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -88,15 +89,6 @@ const projects = [
   },
 ] as const;
 
-function BrandMark() {
-  return (
-    <span className="relative flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-primary">
-      <span className="absolute -left-1 size-6 rounded-full border-4 border-primary-foreground" />
-      <span className="absolute right-1.5 bottom-1.5 size-1.5 rounded-full bg-primary-foreground" />
-    </span>
-  );
-}
-
 function NavigationPanel({
   email,
   collapsed = false,
@@ -133,11 +125,12 @@ function NavigationPanel({
           )}
           aria-label={collapsed ? copy.dashboard : undefined}
         >
-          <BrandMark />
-          {!collapsed && (
+          {collapsed ? (
+            <PlutosMark eager />
+          ) : (
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold">Plutos</p>
-              <p className="truncate text-xs text-muted-foreground">{copy.workspace}</p>
+              <PlutosLogo className="w-36" eager />
+              <p className="mt-0.5 truncate text-xs text-muted-foreground">{copy.workspace}</p>
             </div>
           )}
         </Link>

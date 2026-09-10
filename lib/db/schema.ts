@@ -138,6 +138,7 @@ export const orders = pgTable(
     ownerId: uuid("owner_id").notNull(),
     reference: varchar("reference", { length: 32 }).notNull(),
     articleId: uuid("article_id"),
+    clientId: uuid("client_id").references(() => clients.id, { onDelete: "set null" }),
     originCountryCode: varchar("origin_country_code", { length: 2 }).notNull(),
     originCountryName: varchar("origin_country_name", { length: 80 }).notNull(),
     originCity: varchar("origin_city", { length: 120 }).notNull(),
@@ -151,7 +152,15 @@ export const orders = pgTable(
     purchaseUnitPrice: numeric("purchase_unit_price", { precision: 12, scale: 2 })
       .default("0")
       .notNull(),
+    transportCost: numeric("transport_cost", { precision: 12, scale: 2 })
+      .default("0")
+      .notNull(),
+    additionalCharges: numeric("additional_charges", { precision: 12, scale: 2 })
+      .default("0")
+      .notNull(),
     createdByEmail: varchar("created_by_email", { length: 320 }),
+    launchedAt: timestamp("launched_at", { withTimezone: true }),
+    launchedByEmail: varchar("launched_by_email", { length: 320 }),
     totalWeightKg: integer("total_weight_kg"),
     cbm: numeric("cbm", { precision: 10, scale: 2 }),
     status: varchar("status", { length: 24 }).default("in_transit").notNull(),
@@ -167,6 +176,7 @@ export const orders = pgTable(
   (table) => [
     index("orders_owner_id_idx").on(table.ownerId),
     index("orders_article_id_idx").on(table.articleId),
+    index("orders_client_id_idx").on(table.clientId),
     index("orders_status_idx").on(table.status),
     uniqueIndex("orders_owner_reference_unique").on(
       table.ownerId,
@@ -270,6 +280,58 @@ export const articles = pgTable(
 
 export type Article = typeof articles.$inferSelect;
 export type NewArticle = typeof articles.$inferInsert;
+
+export const orderItems = pgTable(
+  "order_items",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    orderId: uuid("order_id")
+      .notNull()
+      .references(() => orders.id, { onDelete: "cascade" }),
+    ownerId: uuid("owner_id").notNull(),
+    articleId: uuid("article_id").references(() => articles.id, {
+      onDelete: "set null",
+    }),
+    description: varchar("description", { length: 180 }).notNull(),
+    sku: varchar("sku", { length: 64 }).notNull(),
+    quantity: integer("quantity").notNull(),
+    purchaseUnitPrice: numeric("purchase_unit_price", {
+      precision: 12,
+      scale: 2,
+    }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  },
+  (table) => [
+    index("order_items_order_id_idx").on(table.orderId),
+    index("order_items_owner_id_idx").on(table.ownerId),
+    index("order_items_article_id_idx").on(table.articleId),
+    uniqueIndex("order_items_order_article_unique").on(
+      table.orderId,
+      table.articleId,
+    ),
+    check("order_items_quantity_positive", sql`${table.quantity} > 0`),
+    check(
+      "order_items_purchase_price_positive",
+      sql`${table.purchaseUnitPrice} >= 0`,
+    ),
+    pgPolicy("order_items_owner_access", {
+      for: "all",
+      to: authenticatedRole,
+      using: sql`auth.uid() = ${table.ownerId}`,
+      withCheck: sql`auth.uid() = ${table.ownerId}`,
+    }),
+    pgPolicy("order_items_admin_read", {
+      for: "select",
+      to: authenticatedRole,
+      using: sql`public.is_admin()`,
+    }),
+  ],
+).enableRLS();
+
+export type OrderItem = typeof orderItems.$inferSelect;
+export type NewOrderItem = typeof orderItems.$inferInsert;
 
 export const stockMovements = pgTable(
   "stock_movements",

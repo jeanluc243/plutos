@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useActionState, useRef, useState } from "react";
-import { CalendarClock, LoaderCircle, PackagePlus, Plus, Truck } from "lucide-react";
+import { LoaderCircle, PackagePlus, Plus, Trash2, Truck } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { CountryFlag } from "@/components/country-flag";
@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -40,7 +41,30 @@ export type OrderArticleOption = {
   sku: string;
 };
 
+type SelectedOrderItem = {
+  key: string;
+  articleId: string;
+  quantity: number;
+};
+
+function initialItems(articles: OrderArticleOption[]): SelectedOrderItem[] {
+  return articles[0]
+    ? [{ key: "initial", articleId: articles[0].id, quantity: 1 }]
+    : [];
+}
+
 const CREATE_CARRIER_VALUE = "__create_carrier__";
+const NO_CLIENT_VALUE = "__no_client__";
+
+function defaultTransitDays(transportMode: string) {
+  return transportMode === "air" ? 15 : 90;
+}
+
+function suggestedArrivalDate(transportMode: string) {
+  const date = new Date();
+  date.setUTCDate(date.getUTCDate() + defaultTransitDays(transportMode));
+  return date.toISOString().slice(0, 10);
+}
 
 function CityField({
   id,
@@ -100,10 +124,12 @@ export function CreateOrderDialog({
   language,
   carriers,
   articles,
+  clients,
 }: {
   language: DashboardLanguage;
   carriers: { id: string; name: string; information: string | null }[];
   articles: OrderArticleOption[];
+  clients: { id: string; name: string }[];
 }) {
   const copy = ordersCopy[language];
   const [open, setOpen] = useState(false);
@@ -111,12 +137,16 @@ export function CreateOrderDialog({
   const [destinationCountryCode, setDestinationCountryCode] = useState("CD");
   const [originCity, setOriginCity] = useState("");
   const [destinationCity, setDestinationCity] = useState("");
-  const [articleId, setArticleId] = useState(articles[0]?.id ?? "");
+  const [selectedItems, setSelectedItems] = useState<SelectedOrderItem[]>(() => initialItems(articles));
+  const [clientId, setClientId] = useState("");
   const [carrier, setCarrier] = useState(carriers[0]?.name ?? "");
   const [creatingCarrier, setCreatingCarrier] = useState(false);
   const [newCarrierName, setNewCarrierName] = useState("");
   const [newCarrierInformation, setNewCarrierInformation] = useState("");
   const [transportMode, setTransportMode] = useState("road");
+  const [estimatedArrival, setEstimatedArrival] = useState(() => suggestedArrivalDate("road"));
+  const [arrivalOverridden, setArrivalOverridden] = useState(false);
+  const [launchImmediately, setLaunchImmediately] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const [state, formAction, pending] = useActionState(
     async (previousState: CreateOrderState, formData: FormData) => {
@@ -127,12 +157,16 @@ export function CreateOrderDialog({
         setDestinationCountryCode("CD");
         setOriginCity("");
         setDestinationCity("");
-        setArticleId(articles[0]?.id ?? "");
+        setSelectedItems(initialItems(articles));
+        setClientId("");
         setCarrier(carriers[0]?.name ?? "");
         setCreatingCarrier(false);
         setNewCarrierName("");
         setNewCarrierInformation("");
         setTransportMode("road");
+        setEstimatedArrival(suggestedArrivalDate("road"));
+        setArrivalOverridden(false);
+        setLaunchImmediately(false);
         setOpen(false);
       }
       return nextState;
@@ -141,8 +175,22 @@ export function CreateOrderDialog({
   );
 
   const errorMessage = state.error ? copy.errors[state.error] : null;
-  const selectedArticle = articles.find((article) => article.id === articleId);
   const selectedCarrier = carriers.find((item) => item.name === carrier);
+
+  function addArticle() {
+    const nextArticle = articles.find(
+      (article) => !selectedItems.some((item) => item.articleId === article.id),
+    );
+    if (!nextArticle) return;
+    setSelectedItems((items) => [
+      ...items,
+      { key: crypto.randomUUID(), articleId: nextArticle.id, quantity: 1 },
+    ]);
+  }
+
+  function updateItem(key: string, patch: Partial<Pick<SelectedOrderItem, "articleId" | "quantity">>) {
+    setSelectedItems((items) => items.map((item) => item.key === key ? { ...item, ...patch } : item));
+  }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -278,40 +326,103 @@ export function CreateOrderDialog({
               />
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4">
               <div className="grid gap-2">
-                <Label htmlFor="order-article">{copy.article}</Label>
-                <Select
-                  name="articleId"
-                  value={articleId}
-                  onValueChange={(value) => setArticleId(value ?? "")}
-                  required
-                >
-                  <SelectTrigger id="order-article" className="w-full">
-                    {selectedArticle ? (
-                      <span className="flex min-w-0 flex-col text-left">
-                        <span className="truncate">{selectedArticle.name}</span>
-                        <span className="truncate font-mono text-xs text-muted-foreground">
-                          {selectedArticle.sku}
-                        </span>
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground">{copy.selectArticle}</span>
-                    )}
-                  </SelectTrigger>
-                  <SelectContent align="start">
-                    {articles.map((article) => (
-                      <SelectItem key={article.id} value={article.id}>
-                        <span className="flex min-w-0 flex-col">
-                          <span className="truncate">{article.name}</span>
-                          <span className="font-mono text-xs text-muted-foreground">
-                            {article.sku}
-                          </span>
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex items-center justify-between gap-3">
+                  <Label>{copy.articles}</Label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={addArticle}
+                    disabled={selectedItems.length >= articles.length}
+                  >
+                    <Plus data-icon="inline-start" />
+                    {copy.addArticle}
+                  </Button>
+                </div>
+                <input
+                  type="hidden"
+                  name="items"
+                  value={JSON.stringify(selectedItems.map(({ articleId, quantity }) => ({ articleId, quantity })))}
+                />
+                <div className="grid gap-2 rounded-lg border bg-muted/20 p-3">
+                  {selectedItems.map((item, index) => {
+                    const selectedArticle = articles.find((article) => article.id === item.articleId);
+                    return (
+                      <div
+                        key={item.key}
+                        className="grid grid-cols-[minmax(0,1fr)_6rem_auto] items-end gap-2"
+                      >
+                        <div className="grid min-w-0 gap-1.5">
+                          <Label htmlFor={`order-article-${item.key}`} className="text-xs">
+                            {copy.article} {index + 1}
+                          </Label>
+                          <Select
+                            value={item.articleId}
+                            onValueChange={(value) => updateItem(item.key, { articleId: value ?? "" })}
+                            required
+                          >
+                            <SelectTrigger id={`order-article-${item.key}`} className="w-full">
+                              {selectedArticle ? (
+                                <span className="flex min-w-0 flex-col text-left">
+                                  <span className="truncate">{selectedArticle.name}</span>
+                                  <span className="truncate font-mono text-xs text-muted-foreground">
+                                    {selectedArticle.sku}
+                                  </span>
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground">{copy.selectArticle}</span>
+                              )}
+                            </SelectTrigger>
+                            <SelectContent align="start">
+                              {articles.map((article) => (
+                                <SelectItem
+                                  key={article.id}
+                                  value={article.id}
+                                  disabled={selectedItems.some(
+                                    (selected) => selected.key !== item.key && selected.articleId === article.id,
+                                  )}
+                                >
+                                  <span className="flex min-w-0 flex-col">
+                                    <span className="truncate">{article.name}</span>
+                                    <span className="font-mono text-xs text-muted-foreground">{article.sku}</span>
+                                  </span>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="grid gap-1.5">
+                          <Label htmlFor={`order-quantity-${item.key}`} className="text-xs">
+                            {copy.itemQuantity}
+                          </Label>
+                          <Input
+                            id={`order-quantity-${item.key}`}
+                            type="number"
+                            min={1}
+                            max={1_000_000}
+                            step={1}
+                            value={item.quantity}
+                            onChange={(event) => updateItem(item.key, { quantity: Number(event.target.value) })}
+                            required
+                          />
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setSelectedItems((items) => items.filter((selected) => selected.key !== item.key))}
+                          disabled={selectedItems.length === 1}
+                          aria-label={copy.removeArticle}
+                          title={copy.removeArticle}
+                        >
+                          <Trash2 />
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
               <div className="grid gap-2">
                 <Label htmlFor="order-carrier">{copy.carrier}</Label>
@@ -392,13 +503,40 @@ export function CreateOrderDialog({
               </div>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-              <div className="grid gap-2">
+            <div className="grid gap-2">
+              <Label htmlFor="order-client">{copy.client}</Label>
+              <Select
+                name="clientId"
+                value={clientId || NO_CLIENT_VALUE}
+                onValueChange={(value) => setClientId(value === NO_CLIENT_VALUE ? "" : value ?? "")}
+              >
+                <SelectTrigger id="order-client" className="w-full">
+                  <span className="truncate">
+                    {clients.find((client) => client.id === clientId)?.name ?? copy.noClient}
+                  </span>
+                </SelectTrigger>
+                <SelectContent align="start">
+                  <SelectItem value={NO_CLIENT_VALUE}>{copy.noClient}</SelectItem>
+                  {clients.map((client) => (
+                    <SelectItem key={client.id} value={client.id}>{client.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="grid min-w-0 gap-2">
                 <Label htmlFor="order-mode">{copy.transportMode}</Label>
                 <Select
                   name="transportMode"
                   value={transportMode}
-                  onValueChange={(value) => setTransportMode(value ?? "road")}
+                  onValueChange={(value) => {
+                    const nextMode = value ?? "road";
+                    setTransportMode(nextMode);
+                    if (!arrivalOverridden) {
+                      setEstimatedArrival(suggestedArrivalDate(nextMode));
+                    }
+                  }}
                   required
                 >
                   <SelectTrigger id="order-mode" className="w-full">
@@ -412,20 +550,7 @@ export function CreateOrderDialog({
                   </SelectContent>
                 </Select>
               </div>
-              <div className="grid gap-2">
-                <Label htmlFor="order-quantity">{copy.quantity}</Label>
-                <Input
-                  id="order-quantity"
-                  name="quantity"
-                  type="number"
-                  min={1}
-                  max={1_000_000}
-                  step={1}
-                  defaultValue={1}
-                  required
-                />
-              </div>
-              <div className="grid gap-2">
+              <div className="grid min-w-0 gap-2">
                 <Label htmlFor="order-weight">{copy.weight}</Label>
                 <Input
                   id="order-weight"
@@ -436,7 +561,7 @@ export function CreateOrderDialog({
                   placeholder="500"
                 />
               </div>
-              <div className="grid gap-2">
+              <div className="grid min-w-0 gap-2">
                 <Label htmlFor="order-cbm">{copy.cbm}</Label>
                 <Input
                   id="order-cbm"
@@ -447,13 +572,64 @@ export function CreateOrderDialog({
                   placeholder="2.50"
                 />
               </div>
-              <div className="grid gap-2">
-                <Label>{copy.eta}</Label>
-                <div className="flex min-h-9 items-center gap-2 rounded-md border bg-muted/30 px-3 text-sm text-muted-foreground">
-                  <CalendarClock className="size-4 shrink-0" />
-                  <span>{copy.etaAutomatic}</span>
+              <div className="grid min-w-0 gap-2 sm:col-span-2 xl:col-span-2">
+                <Label htmlFor="order-transport-cost">{copy.transportCost}</Label>
+                <Input
+                  id="order-transport-cost"
+                  name="transportCost"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  defaultValue="0"
+                  required
+                />
+              </div>
+              <div className="grid min-w-0 gap-2 sm:col-span-2 xl:col-span-2">
+                <Label htmlFor="order-additional-charges">{copy.additionalCharges}</Label>
+                <Input
+                  id="order-additional-charges"
+                  name="additionalCharges"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  defaultValue="0"
+                  required
+                />
+              </div>
+              <div className="grid gap-2 sm:col-span-2 xl:col-span-4">
+                <Label htmlFor="order-eta">{copy.eta}</Label>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <Input
+                    id="order-eta"
+                    name="eta"
+                    type="date"
+                    value={estimatedArrival}
+                    onChange={(event) => {
+                      setEstimatedArrival(event.target.value);
+                      setArrivalOverridden(true);
+                    }}
+                    className="w-full sm:w-56"
+                    required
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {copy.etaSuggestion.replace("{days}", String(defaultTransitDays(transportMode)))}
+                  </p>
                 </div>
               </div>
+            </div>
+
+            <div className="flex items-center justify-between gap-4 rounded-lg border bg-muted/20 p-4">
+              <div className="grid gap-1">
+                <Label htmlFor="order-launch-immediately">{copy.launchImmediately}</Label>
+                <p className="text-sm text-muted-foreground">{copy.launchImmediatelyHint}</p>
+              </div>
+              <input type="hidden" name="launchImmediately" value={String(launchImmediately)} />
+              <Switch
+                id="order-launch-immediately"
+                checked={launchImmediately}
+                onCheckedChange={setLaunchImmediately}
+                aria-label={copy.launchImmediately}
+              />
             </div>
 
             {errorMessage && (
@@ -473,7 +649,7 @@ export function CreateOrderDialog({
               ) : (
                 <Plus data-icon="inline-start" />
               )}
-              {pending ? copy.creating : copy.createOrder}
+              {pending ? copy.creating : launchImmediately ? copy.launchOrder : copy.createOrder}
             </Button>
           </DialogFooter>
           </form>
